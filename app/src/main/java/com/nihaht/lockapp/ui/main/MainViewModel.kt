@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.io.IOException
 
 /** Estado de la puerta de entrada a LockApp (protegida por el PIN maestro). */
 enum class Gate { LOADING, SETUP, LOCKED, UNLOCKED }
@@ -76,11 +77,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (_busy.value) return
         viewModelScope.launch {
             _busy.value = true
-            val credential = container.authenticator.createCredential(pin)
-            unlocked.value = true
-            container.settingsRepository.setMasterCredential(credential)
-            container.authenticator.resetAttempts(Authenticator.MASTER_ID)
-            _busy.value = false
+            try {
+                val credential = container.authenticator.createCredential(pin)
+                // Se marca como abierta antes de guardar para no mostrar un instante
+                // la pantalla de "introduce tu PIN maestro" (ni lanzar la huella).
+                unlocked.value = true
+                container.settingsRepository.setMasterCredential(credential)
+                container.authenticator.resetAttempts(Authenticator.MASTER_ID)
+            } catch (e: IOException) {
+                unlocked.value = false
+                _message.value = "No se pudo guardar el PIN maestro. Inténtalo de nuevo"
+            } finally {
+                _busy.value = false
+            }
         }
     }
 
@@ -120,11 +129,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (_busy.value) return
         viewModelScope.launch {
             _busy.value = true
-            val credential = container.authenticator.createCredential(pin)
-            container.settingsRepository.setMasterCredential(credential)
-            container.authenticator.resetAttempts(Authenticator.MASTER_ID)
-            _busy.value = false
-            _changeMasterStep.value = ChangeMasterStep.DONE
+            try {
+                val credential = container.authenticator.createCredential(pin)
+                container.settingsRepository.setMasterCredential(credential)
+                container.authenticator.resetAttempts(Authenticator.MASTER_ID)
+                _changeMasterStep.value = ChangeMasterStep.DONE
+            } catch (e: IOException) {
+                _message.value = "No se pudo guardar el PIN maestro. Inténtalo de nuevo"
+            } finally {
+                _busy.value = false
+            }
         }
     }
 
@@ -166,7 +180,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun allowSystemSettingsTemporarily() = container.allowSettingsTemporarily()
 
     private fun update(block: suspend () -> Unit) {
-        viewModelScope.launch { block() }
+        viewModelScope.launch {
+            try {
+                block()
+            } catch (e: IOException) {
+                _message.value = "No se pudo guardar el ajuste"
+            }
+        }
     }
 
     private companion object {

@@ -45,6 +45,14 @@ class MainActivity : FragmentActivity() {
                 }
             }
         }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                appListViewModel.error.filterNotNull().collect { text ->
+                    Toast.makeText(this@MainActivity, text, Toast.LENGTH_SHORT).show()
+                    appListViewModel.consumeError()
+                }
+            }
+        }
 
         setContent {
             LockAppTheme {

@@ -53,6 +53,24 @@ Desde una terminal en la carpeta del proyecto:
 
 El APK queda en `app/build/outputs/apk/debug/app-debug.apk`.
 
+## Verificación automática (GitHub Actions)
+
+Cada vez que se sube código a la rama `lockapp`, el workflow `.github/workflows/lockapp.yml`:
+
+1. Ejecuta las pruebas unitarias y compila el APK.
+2. Pasa lint y comprueba que el APK **no** pide el permiso `INTERNET`.
+3. Instala la app en un **emulador de Android 14** y la usa como un usuario real (`scripts/e2e/run.sh`):
+   crea el PIN maestro, bloquea una app con su propio PIN, comprueba que el PIN maestro no la abre,
+   que el PIN correcto sí, que Atrás lleva al inicio, que al apagar la pantalla vuelve a pedir el PIN,
+   el periodo de gracia de 30 s y el bloqueo tras 5 intentos fallidos.
+4. Si todo pasa, publica `LockApp.apk` en **Releases > lockapp-latest**. Desde el teléfono puedes
+   abrir esa página, descargar el APK e instalarlo directamente.
+
+Las capturas de la prueba en el emulador quedan como artefacto `e2e-resultados` de cada ejecución.
+
+El APK se firma con `app/debug.keystore` (clave de depuración incluida en el repo), así que cada versión
+nueva se instala encima de la anterior sin desinstalar y sin perder los PIN.
+
 ## Instalar en el Samsung
 
 **Opción A: cable USB (recomendada)**

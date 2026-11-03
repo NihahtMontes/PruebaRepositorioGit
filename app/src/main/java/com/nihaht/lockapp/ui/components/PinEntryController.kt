@@ -3,6 +3,7 @@ package com.nihaht.lockapp.ui.components
 import android.os.SystemClock
 import com.nihaht.lockapp.security.PinHasher
 import com.nihaht.lockapp.security.VerifyResult
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -74,7 +75,18 @@ class PinEntryController(
         }
         _state.update { it.copy(checking = true) }
         scope.launch {
-            when (val result = verify(current.pin)) {
+            val result = try {
+                verify(current.pin)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Error al leer o guardar en disco: no se cuenta como intento.
+                _state.update {
+                    it.copy(pin = "", checking = false, isError = true, message = "No se pudo comprobar el PIN. Inténtalo de nuevo")
+                }
+                return@launch
+            }
+            when (result) {
                 VerifyResult.Success -> {
                     _state.value = PinEntryState()
                     onSuccess()

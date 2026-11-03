@@ -24,10 +24,6 @@ class AppLockAccessibilityService : AccessibilityService() {
     /** Última app "real" en primer plano (sin contar ventanas del sistema). */
     private var foregroundPackage: String? = null
 
-    // Evita lanzar la pantalla de bloqueo varias veces por la ráfaga de eventos de una misma app.
-    private var lastLaunchPackage: String? = null
-    private var lastLaunchAt = 0L
-
     override fun onServiceConnected() {
         super.onServiceConnected()
         container = appContainer
@@ -66,11 +62,12 @@ class AppLockAccessibilityService : AccessibilityService() {
         packageName in container.excludedPackages.settingsPackages &&
             SystemClock.elapsedRealtime() < container.settingsBypassUntil
 
+    /**
+     * Se lanza en cada evento de la app bloqueada, sin filtrar repeticiones: si la
+     * app abre otra pantalla (p. ej. tras su splash) la de bloqueo vuelve encima.
+     * LockActivity es singleTask, así que repetir el lanzamiento solo la reutiliza.
+     */
     private fun showLockScreen(packageName: String) {
-        val now = SystemClock.elapsedRealtime()
-        if (packageName == lastLaunchPackage && now - lastLaunchAt < LAUNCH_DEBOUNCE_MS) return
-        lastLaunchPackage = packageName
-        lastLaunchAt = now
         startActivity(LockActivity.intent(this, packageName))
     }
 
@@ -102,7 +99,6 @@ class AppLockAccessibilityService : AccessibilityService() {
         // que estaba abierta, así que se deja la pantalla de bloqueo puesta ya.
         val current = foregroundPackage ?: return
         if (!settings.paused && container.currentLockedApps().containsKey(current)) {
-            lastLaunchPackage = null
             showLockScreen(current)
         }
     }
@@ -113,9 +109,5 @@ class AppLockAccessibilityService : AccessibilityService() {
         screenReceiver?.let { unregisterReceiver(it) }
         screenReceiver = null
         super.onDestroy()
-    }
-
-    private companion object {
-        const val LAUNCH_DEBOUNCE_MS = 800L
     }
 }

@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.IOException
 
 data class AppRow(val app: InstalledApp, val locked: Boolean)
 
@@ -32,6 +33,13 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
 
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
+
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
+    fun consumeError() {
+        _error.value = null
+    }
 
     /** null mientras se lee del disco. */
     val lockedApps: StateFlow<Map<String, LockedApp>?> = container.lockedAppsState
@@ -81,12 +89,17 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
         if (_busy.value) return
         viewModelScope.launch {
             _busy.value = true
-            val credential = container.authenticator.createCredential(pin)
-            container.lockedAppsRepository.lock(packageName, credential, allowBiometric)
-            container.authenticator.resetAttempts(packageName)
-            container.sessions.lock(packageName)
-            _busy.value = false
-            onDone()
+            try {
+                val credential = container.authenticator.createCredential(pin)
+                container.lockedAppsRepository.lock(packageName, credential, allowBiometric)
+                container.authenticator.resetAttempts(packageName)
+                container.sessions.lock(packageName)
+                onDone()
+            } catch (e: IOException) {
+                _error.value = "No se pudo guardar el PIN. Inténtalo de nuevo"
+            } finally {
+                _busy.value = false
+            }
         }
     }
 
