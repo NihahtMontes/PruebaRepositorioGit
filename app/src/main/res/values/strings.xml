@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">LockApp</string>
+    <string name="accessibility_label">LockApp: bloqueo de apps</string>
+    <string name="accessibility_description">Permite a LockApp saber qué aplicación se abre para mostrar la pantalla de PIN encima de las apps que elegiste. Solo lee el nombre de la app: nunca el contenido de la pantalla ni lo que escribes, y no envía datos a ningún sitio.</string>
+    <string name="notification_channel_name">Servicio de bloqueo</string>
+    <string name="notification_title">LockApp está activo</string>
+    <string name="notification_text">Tus apps bloqueadas están protegidas</string>
+</resources>
