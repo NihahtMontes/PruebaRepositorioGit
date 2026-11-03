@@ -17,7 +17,7 @@ private val LightColors = lightColorScheme(
     primaryContainer = Color(0xFFDDE1FF),
     onPrimaryContainer = Color(0xFF00105C),
     secondary = Color(0xFF5B5D72),
-    tertiary = Color(0xFF00897B),
+    tertiary = Color(0xFF00796B),
     error = Color(0xFFBA1A1A),
 )
 

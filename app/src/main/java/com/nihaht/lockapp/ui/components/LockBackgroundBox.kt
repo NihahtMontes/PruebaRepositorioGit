@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
@@ -78,8 +79,13 @@ fun LockBackgroundBox(
             // Capa oscura para que el texto se lea sobre cualquier foto.
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)))
         }
-        CompositionLocalProvider(LocalContentColor provides contentColor) {
-            content()
+        // Sobre fondos oscuros el rojo de error del tema claro apenas se lee:
+        // se usa un rojo claro (y uno oscuro sobre fondos claros).
+        val errorColor = if (contentColor == Color.White) Color(0xFFFFB4AB) else Color(0xFFB3261E)
+        MaterialTheme(colorScheme = MaterialTheme.colorScheme.copy(error = errorColor)) {
+            CompositionLocalProvider(LocalContentColor provides contentColor) {
+                content()
+            }
         }
     }
 }
