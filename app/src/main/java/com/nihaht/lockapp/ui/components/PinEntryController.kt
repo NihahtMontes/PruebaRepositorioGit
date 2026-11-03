@@ -108,10 +108,16 @@ class PinEntryController(
         countdownJob?.cancel()
         val end = SystemClock.elapsedRealtime() + ms
         countdownJob = scope.launch {
+            var shownSeconds = -1L
             while (true) {
                 val left = end - SystemClock.elapsedRealtime()
                 if (left <= 0) break
-                _state.update { it.copy(lockoutRemainingMs = left, isError = true) }
+                // Solo se redibuja cuando cambia el segundo que se muestra.
+                val seconds = (left + 999) / 1000
+                if (seconds != shownSeconds) {
+                    shownSeconds = seconds
+                    _state.update { it.copy(lockoutRemainingMs = left, isError = true) }
+                }
                 delay(TICK_MS)
             }
             _state.update { it.copy(lockoutRemainingMs = 0L, message = null, isError = false) }

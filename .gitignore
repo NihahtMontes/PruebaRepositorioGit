@@ -12,5 +12,6 @@ captures/
 *.apk
 *.aab
 *.keystore
+!app/debug.keystore
 *.jks
 .DS_Store

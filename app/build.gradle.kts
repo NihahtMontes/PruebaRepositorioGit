@@ -16,6 +16,17 @@ android {
         versionName = "1.0.0"
     }
 
+    // Clave de depuración fija (incluida en el repo) para que cada APK nuevo
+    // se pueda instalar encima del anterior sin desinstalar ni perder los PIN.
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
