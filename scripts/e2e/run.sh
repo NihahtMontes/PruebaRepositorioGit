@@ -10,6 +10,8 @@ SERVICE="$PKG/$PKG.service.AppLockAccessibilityService"
 OUT="${E2E_OUT:-e2e-output}"
 DIR="$(cd "$(dirname "$0")" && pwd)"
 MASTER_PIN=1234
+# Multiplicador de esperas para emuladores lentos (sin aceleración): E2E_SLOW=4
+SLOW="${E2E_SLOW:-1}"
 APP_PIN=5678
 STEP=0
 declare -A KEYS=()
@@ -52,7 +54,7 @@ find_node() { ui_dump | python3 "$DIR/ui.py" "$1" "${2:-}"; }
 
 # wait_for MODO VALOR [segundos]
 wait_for() {
-    local end=$((SECONDS + ${3:-20}))
+    local end=$((SECONDS + ${3:-20} * SLOW))
     while ((SECONDS < end)); do
         find_node "$1" "$2" > /dev/null 2>&1 && return 0
         sleep 1
@@ -62,7 +64,7 @@ wait_for() {
 
 # tap MODO VALOR
 tap() {
-    local xy end=$((SECONDS + 20))
+    local xy end=$((SECONDS + 20 * SLOW))
     while ((SECONDS < end)); do
         if xy=$(find_node "$1" "$2" 2> /dev/null) && [[ -n "$xy" ]]; then
             adb shell input tap $xy
@@ -76,7 +78,7 @@ tap() {
 
 # Lee la posición de las teclas del teclado de PIN que hay en pantalla.
 read_keypad() {
-    local line end=$((SECONDS + 20))
+    local line end=$((SECONDS + 20 * SLOW))
     KEYS=()
     while ((SECONDS < end)); do
         if line=$(ui_dump | python3 "$DIR/ui.py" keypad 2> /dev/null); then
@@ -97,14 +99,14 @@ type_pin() {
         sleep 0.3
     done
     adb shell input tap ${KEYS[ok]}
-    sleep 2.5 # el hash PBKDF2 tarda un poco; mientras tanto el teclado no acepta pulsaciones
+    sleep "$(awk "BEGIN{print 2.5*$SLOW}")" # el hash PBKDF2 tarda un poco; mientras tanto el teclado no acepta pulsaciones
 }
 
 focus() { adb shell dumpsys window | grep -m1 "mCurrentFocus" | tr -d '\r'; }
 
 # wait_focus PATRON [segundos]: espera a que la ventana con foco contenga PATRON.
 wait_focus() {
-    local end=$((SECONDS + ${2:-10}))
+    local end=$((SECONDS + ${2:-10} * SLOW))
     while ((SECONDS < end)); do
         focus | grep -q "$1" && return 0
         sleep 0.5
@@ -115,7 +117,7 @@ wait_focus() {
 
 # wait_focus_not PATRON [segundos]
 wait_focus_not() {
-    local end=$((SECONDS + ${2:-10}))
+    local end=$((SECONDS + ${2:-10} * SLOW))
     while ((SECONDS < end)); do
         local f
         f=$(focus)
@@ -145,7 +147,7 @@ open_lockapp() {
 }
 
 # uiautomator suspende un momento los servicios de accesibilidad: se espera a que vuelva.
-settle() { sleep "${1:-3}"; }
+settle() { sleep $(( ${1:-3} * SLOW )); }
 
 # -------------------------------------------------------------- preparación
 
