@@ -165,6 +165,8 @@ adb logcat -c
 
 log "Instalando el APK"
 adb install -r -g "$APK" || fail "no se pudo instalar el APK"
+# Equivale a "Batería sin restricciones" en el teléfono.
+adb shell dumpsys deviceidle whitelist +"$PKG" > /dev/null 2>&1 || true
 ok "APK instalado"
 
 # App de prueba que se va a bloquear: la primera que exista en el emulador.
@@ -357,9 +359,37 @@ ok "durante la espera ni el PIN correcto abre la app"
 adb shell input keyevent KEYCODE_BACK
 home
 
-# ----------------------------------------------------------- 8. comprobaciones
+# --------------------------------------------- 8. diagnóstico y Recientes
 
-log "8. Comprobaciones finales"
+log "8. Pantalla de Diagnóstico"
+open_lockapp
+tap desc "Diagnóstico"
+if wait_for text "Todo funciona correctamente" 30; then
+    snap "diagnostico"
+    ok "el diagnóstico dice que todo funciona"
+else
+    snap "diagnostico"
+    fail "el diagnóstico muestra problemas"
+fi
+adb shell input keyevent KEYCODE_BACK
+home
+settle
+
+log "8b. Recientes (comprobación informativa: depende del launcher)"
+adb shell input keyevent KEYCODE_APP_SWITCH
+sleep $((4 * SLOW))
+snap "recientes"
+if find_node contains "Recientes protegidos" > /dev/null 2>&1; then
+    ok "Recientes queda tapado y pide el PIN maestro"
+    tap contains "Ir al inicio"
+else
+    echo "  ⚠️ este launcher no se detectó como Recientes (en Samsung se comprueba en Diagnóstico)"
+fi
+home
+
+# ----------------------------------------------------------- 9. comprobaciones
+
+log "9. Comprobaciones finales"
 if adb shell dumpsys package "$PKG" | grep -q "android.permission.INTERNET"; then
     fail "la app tiene el permiso INTERNET"
 fi
