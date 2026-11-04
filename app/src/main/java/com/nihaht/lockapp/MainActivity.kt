@@ -1,5 +1,6 @@
 package com.nihaht.lockapp
 
+import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.compose.setContent
@@ -47,6 +48,14 @@ class MainActivity : FragmentActivity() {
         }
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
+                appContainer.errors.messages.collect { text ->
+                    Toast.makeText(this@MainActivity, text, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        handleIntent(intent)
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
                 appListViewModel.error.filterNotNull().collect { text ->
                     Toast.makeText(this@MainActivity, text, Toast.LENGTH_SHORT).show()
                     appListViewModel.consumeError()
@@ -65,6 +74,19 @@ class MainActivity : FragmentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_OPEN_DIAGNOSTICS, false) == true) {
+            intent.removeExtra(EXTRA_OPEN_DIAGNOSTICS)
+            mainViewModel.requestDiagnostics()
+        }
+    }
+
     override fun onStart() {
         super.onStart()
         mainViewModel.onAppForeground()
@@ -79,6 +101,15 @@ class MainActivity : FragmentActivity() {
     private fun showMasterBiometric() {
         if (biometricShowing || !mainViewModel.canUseBiometricForMaster()) return
         biometricShowing = true
-        biometricPrompt.authenticate(BiometricHelper.promptInfo("Abrir LockApp"))
+        try {
+            biometricPrompt.authenticate(BiometricHelper.promptInfo("Abrir LockApp"))
+        } catch (e: Exception) {
+            biometricShowing = false
+            appContainer.errors.report("No se pudo usar la huella; usa el PIN", e)
+        }
+    }
+
+    companion object {
+        const val EXTRA_OPEN_DIAGNOSTICS = "com.nihaht.lockapp.extra.OPEN_DIAGNOSTICS"
     }
 }

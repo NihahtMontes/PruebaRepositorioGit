@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.WindowManager
+import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -16,6 +17,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.nihaht.lockapp.appContainer
 import com.nihaht.lockapp.ui.components.BiometricHelper
 import com.nihaht.lockapp.ui.theme.LockAppTheme
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -50,6 +52,13 @@ class LockActivity : FragmentActivity() {
 
         if (!handleIntent(intent)) return
 
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                appContainer.errors.messages.collect { text ->
+                    Toast.makeText(this@LockActivity, text, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.state.map { it.unlocked }.distinctUntilChanged().collect { unlocked ->
@@ -102,14 +111,23 @@ class LockActivity : FragmentActivity() {
         val state = viewModel.state.value
         if (!state.biometricAvailable || biometricShowing || isFinishing) return
         biometricShowing = true
-        biometricPrompt.authenticate(BiometricHelper.promptInfo("Desbloquear ${state.appLabel}"))
+        try {
+            biometricPrompt.authenticate(BiometricHelper.promptInfo("Desbloquear ${state.appLabel}"))
+        } catch (e: Exception) {
+            biometricShowing = false
+            appContainer.errors.report("No se pudo usar la huella; usa el PIN", e)
+        }
     }
 
     private fun goHome() {
         val home = Intent(Intent.ACTION_MAIN)
             .addCategory(Intent.CATEGORY_HOME)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        startActivity(home)
+        try {
+            startActivity(home)
+        } catch (e: Exception) {
+            appContainer.errors.report("No se pudo ir a la pantalla de inicio", e)
+        }
         finish()
     }
 

@@ -9,6 +9,7 @@ import com.nihaht.lockapp.appContainer
 import com.nihaht.lockapp.data.AppSettings
 import com.nihaht.lockapp.data.GracePeriod
 import com.nihaht.lockapp.data.LockBackground
+import com.nihaht.lockapp.diagnostics.launchSafe
 import com.nihaht.lockapp.security.Authenticator
 import com.nihaht.lockapp.ui.components.BiometricHelper
 import com.nihaht.lockapp.ui.components.PinEntryController
@@ -18,7 +19,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import java.io.IOException
 
 /** Estado de la puerta de entrada a LockApp (protegida por el PIN maestro). */
@@ -68,6 +68,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private var backgroundedAt = 0L
 
+    private val _openDiagnostics = MutableStateFlow(false)
+    val openDiagnostics: StateFlow<Boolean> = _openDiagnostics.asStateFlow()
+
+    /** Se pidió abrir el diagnóstico (p. ej. desde un aviso de la protección). */
+    fun requestDiagnostics() {
+        _openDiagnostics.value = true
+    }
+
+    fun consumeOpenDiagnostics() {
+        _openDiagnostics.value = false
+    }
+
     fun canUseBiometricForMaster(): Boolean =
         settings.value?.biometricEnabled == true && BiometricHelper.isAvailable(getApplication())
 
@@ -75,7 +87,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun createMasterPin(pin: String) {
         if (_busy.value) return
-        viewModelScope.launch {
+        launchSafe(container.errors, "No se pudo crear el PIN maestro") {
             _busy.value = true
             try {
                 val credential = container.authenticator.createCredential(pin)
@@ -94,7 +106,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun onMasterBiometricSuccess() {
-        viewModelScope.launch { container.authenticator.resetAttempts(Authenticator.MASTER_ID) }
+        launchSafe(container.errors, "No se pudo completar el desbloqueo con huella") { container.authenticator.resetAttempts(Authenticator.MASTER_ID) }
         masterEntry.reset()
         unlocked.value = true
     }
@@ -104,7 +116,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val away = SystemClock.elapsedRealtime() - backgroundedAt
         if (backgroundedAt > 0 && away > RELOCK_AFTER_MS) lockNow()
         backgroundedAt = 0L
-        viewModelScope.launch {
+        launchSafe(container.errors, "No se pudo comprobar el estado del PIN maestro") {
             masterEntry.startLockout(container.authenticator.remainingLockout(Authenticator.MASTER_ID))
         }
     }
@@ -127,7 +139,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun saveNewMasterPin(pin: String) {
         if (_busy.value) return
-        viewModelScope.launch {
+        launchSafe(container.errors, "No se pudo cambiar el PIN maestro") {
             _busy.value = true
             try {
                 val credential = container.authenticator.createCredential(pin)
@@ -158,17 +170,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (!paused) container.sessions.lockAll()
     }
 
+    fun setProtectRecents(enabled: Boolean) = update { container.settingsRepository.setProtectRecents(enabled) }
+
     fun setBackground(background: LockBackground) = update { container.settingsRepository.setBackground(background) }
 
     fun setImageBackground(uri: Uri) {
-        viewModelScope.launch {
+        launchSafe(container.errors, "No se pudo cargar la imagen de fondo") {
             _busy.value = true
-            if (container.backgroundStore.saveFromUri(uri)) {
-                container.settingsRepository.setBackground(LockBackground.Image(System.currentTimeMillis()))
-            } else {
-                _message.value = "No se pudo cargar la imagen"
+            try {
+                if (container.backgroundStore.saveFromUri(uri)) {
+                    container.settingsRepository.setBackground(LockBackground.Image(System.currentTimeMillis()))
+                } else {
+                    _message.value = "No se pudo cargar la imagen. Prueba con otra foto"
+                }
+            } finally {
+                _busy.value = false
             }
-            _busy.value = false
         }
     }
 
@@ -180,7 +197,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun allowSystemSettingsTemporarily() = container.allowSettingsTemporarily()
 
     private fun update(block: suspend () -> Unit) {
-        viewModelScope.launch {
+        launchSafe(container.errors, "No se pudo guardar el ajuste") {
             try {
                 block()
             } catch (e: IOException) {

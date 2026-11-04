@@ -67,7 +67,11 @@ fun BackgroundScreen(
     val context = LocalContext.current
     // Photo Picker del sistema: no necesita permisos de almacenamiento.
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) onImagePicked(uri)
+        try {
+            if (uri != null) onImagePicked(uri)
+        } catch (e: Exception) {
+            context.appContainer.errors.report("No se pudo usar esa imagen", e)
+        }
     }
     val image by produceState<ImageBitmap?>(initialValue = null, current) {
         value = (current as? LockBackground.Image)?.let { context.appContainer.backgroundImage(it.version) }
@@ -147,7 +151,11 @@ fun BackgroundScreen(
             SectionLabel("Imagen")
             Button(
                 onClick = {
-                    picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    try {
+                        picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    } catch (e: Exception) {
+                        context.appContainer.errors.report("No se pudo abrir la galería", e)
+                    }
                 },
                 enabled = !busy,
                 modifier = Modifier.padding(horizontal = 16.dp),

@@ -12,8 +12,8 @@ android {
         applicationId = "com.nihaht.lockapp"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
     }
 
     // Clave de depuración fija (incluida en el repo) para que cada APK nuevo
@@ -49,6 +49,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {
@@ -72,6 +73,7 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.biometric)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.androidx.work.runtime.ktx)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 

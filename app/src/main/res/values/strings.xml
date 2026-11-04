@@ -6,4 +6,6 @@
     <string name="notification_channel_name">Servicio de bloqueo</string>
     <string name="notification_title">LockApp está activo</string>
     <string name="notification_text">Tus apps bloqueadas están protegidas</string>
+    <string name="alert_channel_name">Avisos de protección</string>
+    <string name="alert_title">LockApp no está protegiendo tus apps</string>
 </resources>

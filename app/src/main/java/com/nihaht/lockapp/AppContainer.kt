@@ -10,6 +10,8 @@ import com.nihaht.lockapp.data.LockedApp
 import com.nihaht.lockapp.data.LockedAppsRepository
 import com.nihaht.lockapp.data.LockoutRepository
 import com.nihaht.lockapp.data.SettingsRepository
+import com.nihaht.lockapp.diagnostics.ErrorReporter
+import com.nihaht.lockapp.diagnostics.ProtectionStatus
 import com.nihaht.lockapp.security.Authenticator
 import com.nihaht.lockapp.security.UnlockSessionManager
 import com.nihaht.lockapp.service.ExcludedPackages
@@ -37,6 +39,8 @@ class AppContainer(context: Context) {
     val excludedPackages = ExcludedPackages(appContext)
     val authenticator = Authenticator(appContext, settingsRepository, lockedAppsRepository, lockoutRepository)
     val sessions = UnlockSessionManager { SystemClock.elapsedRealtime() }
+    val status = ProtectionStatus()
+    val errors = ErrorReporter()
 
     // Copias en memoria para que el servicio de accesibilidad decida al instante, sin esperar al disco.
     val settingsState: StateFlow<AppSettings?> =

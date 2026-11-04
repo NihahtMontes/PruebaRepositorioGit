@@ -10,33 +10,65 @@ import android.view.accessibility.AccessibilityEvent
 import androidx.core.content.ContextCompat
 import com.nihaht.lockapp.AppContainer
 import com.nihaht.lockapp.appContainer
+import com.nihaht.lockapp.diagnostics.ErrorLog
 import com.nihaht.lockapp.lock.LockActivity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 
 /**
- * Detecta qué app pasa a primer plano (solo el nombre del paquete, nunca el
- * contenido de la pantalla) y muestra la pantalla de bloqueo cuando toca.
+ * Detecta qué app pasa a primer plano (solo el nombre del paquete y el tipo de
+ * ventana, nunca el contenido) y muestra la pantalla de bloqueo cuando toca.
+ * Ningún fallo puede cerrar este servicio: todo se registra en el diagnóstico,
+ * porque si el servicio se cierra Android puede desactivarlo.
  */
 class AppLockAccessibilityService : AccessibilityService() {
 
     private lateinit var container: AppContainer
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var screenReceiver: BroadcastReceiver? = null
+    private var shield: RecentsShield? = null
 
     /** Última app "real" en primer plano (sin contar ventanas del sistema). */
     private var foregroundPackage: String? = null
 
+    /** Hasta cuándo se puede ver Recientes sin PIN (tras desbloquearlo). */
+    private var recentsAllowedUntil = 0L
+
     override fun onServiceConnected() {
         super.onServiceConnected()
-        container = appContainer
-        container.excludedPackages.refresh()
-        registerScreenReceiver()
-        KeepAliveService.start(this)
+        try {
+            container = appContainer
+            container.status.accessibilityConnected = true
+            container.status.accessibilityConnectedAt = SystemClock.elapsedRealtime()
+            container.excludedPackages.refresh()
+            registerScreenReceiver()
+            shield = RecentsShield(
+                service = this,
+                scope = scope,
+                onUnlocked = { recentsAllowedUntil = SystemClock.elapsedRealtime() + RECENTS_GRACE_MS },
+                onGoHome = { recentsAllowedUntil = SystemClock.elapsedRealtime() + GO_HOME_GRACE_MS },
+            )
+            KeepAliveService.start(this)
+            WatchdogWorker.schedule(this)
+            Notifications.cancelProtectionProblem(this)
+        } catch (e: Exception) {
+            ErrorLog.record("Iniciar el servicio de accesibilidad", e)
+        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null || event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
-        val packageName = event.packageName?.toString() ?: return
-        if (!::container.isInitialized) return
-        onForeground(packageName)
+        try {
+            if (event == null || event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
+            if (!::container.isInitialized) return
+            val packageName = event.packageName?.toString() ?: return
+            container.status.noteEvent(packageName)
+            handleRecents(packageName, event.className?.toString().orEmpty())
+            onForeground(packageName)
+        } catch (e: Exception) {
+            ErrorLog.record("Detectar la app abierta", e)
+        }
     }
 
     private fun onForeground(packageName: String) {
@@ -58,6 +90,37 @@ class AppLockAccessibilityService : AccessibilityService() {
         if (mustLock) showLockScreen(packageName)
     }
 
+    /**
+     * Recientes es una ventana del launcher (o de la interfaz del sistema) cuya
+     * clase contiene "Recents". Si está protegido, se tapa con [RecentsShield].
+     */
+    private fun handleRecents(packageName: String, className: String) {
+        val excluded = container.excludedPackages
+        val fromLauncher = excluded.isLauncher(packageName) || packageName == SYSTEM_UI
+        if (!fromLauncher) {
+            // Se abrió otra app: Recientes ya no está en pantalla.
+            if (!excluded.isTransient(packageName)) shield?.hide()
+            return
+        }
+        container.status.noteLauncherEvent("$packageName / $className")
+        val now = SystemClock.elapsedRealtime()
+        if (className.contains("Recents", ignoreCase = true)) {
+            container.status.recentsDetectedAt = now
+            val settings = container.currentSettings()
+            val protect = settings.protectRecents &&
+                !settings.paused &&
+                container.currentLockedApps().isNotEmpty() &&
+                now >= recentsAllowedUntil
+            if (protect && shield?.isShowing == false) {
+                shield?.show()
+                container.status.recentsShieldShown++
+            }
+        } else if (packageName != SYSTEM_UI && className.endsWith("Activity")) {
+            // Volvió a la pantalla de inicio.
+            shield?.hide()
+        }
+    }
+
     private fun isSettingsBypassed(packageName: String): Boolean =
         packageName in container.excludedPackages.settingsPackages &&
             SystemClock.elapsedRealtime() < container.settingsBypassUntil
@@ -68,16 +131,25 @@ class AppLockAccessibilityService : AccessibilityService() {
      * LockActivity es singleTask, así que repetir el lanzamiento solo la reutiliza.
      */
     private fun showLockScreen(packageName: String) {
-        startActivity(LockActivity.intent(this, packageName))
+        try {
+            startActivity(LockActivity.intent(this, packageName))
+            container.status.noteLock()
+        } catch (e: Exception) {
+            ErrorLog.record("Mostrar la pantalla de bloqueo", e)
+        }
     }
 
     private fun registerScreenReceiver() {
         if (screenReceiver != null) return
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
-                when (intent.action) {
-                    Intent.ACTION_SCREEN_OFF -> onScreenOff()
-                    Intent.ACTION_USER_PRESENT -> container.excludedPackages.refresh()
+                try {
+                    when (intent.action) {
+                        Intent.ACTION_SCREEN_OFF -> onScreenOff()
+                        Intent.ACTION_USER_PRESENT -> container.excludedPackages.refresh()
+                    }
+                } catch (e: Exception) {
+                    ErrorLog.record("Pantalla apagada o encendida", e)
                 }
             }
         }
@@ -92,6 +164,8 @@ class AppLockAccessibilityService : AccessibilityService() {
     }
 
     private fun onScreenOff() {
+        recentsAllowedUntil = 0L
+        shield?.hide()
         val settings = container.currentSettings()
         if (!settings.relockOnScreenOff) return
         container.sessions.lockAll()
@@ -105,9 +179,31 @@ class AppLockAccessibilityService : AccessibilityService() {
 
     override fun onInterrupt() = Unit
 
+    override fun onUnbind(intent: Intent?): Boolean {
+        markDisconnected()
+        return super.onUnbind(intent)
+    }
+
     override fun onDestroy() {
-        screenReceiver?.let { unregisterReceiver(it) }
+        markDisconnected()
+        try {
+            screenReceiver?.let { unregisterReceiver(it) }
+        } catch (e: IllegalArgumentException) {
+            ErrorLog.record("Quitar receptor de pantalla", e)
+        }
         screenReceiver = null
+        scope.cancel()
         super.onDestroy()
+    }
+
+    private fun markDisconnected() {
+        shield?.hide()
+        if (::container.isInitialized) container.status.accessibilityConnected = false
+    }
+
+    private companion object {
+        const val SYSTEM_UI = "com.android.systemui"
+        const val RECENTS_GRACE_MS = 60_000L
+        const val GO_HOME_GRACE_MS = 3_000L
     }
 }

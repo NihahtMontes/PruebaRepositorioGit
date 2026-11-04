@@ -17,7 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.PauseCircleFilled
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -53,9 +53,12 @@ fun AppListScreen(
     viewModel: AppListViewModel,
     paused: Boolean,
     accessibilityEnabled: Boolean,
+    serviceResponding: Boolean,
+    crashToReview: Boolean,
     onOpenApp: (String) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenPermissions: () -> Unit,
+    onOpenDiagnostics: () -> Unit,
 ) {
     val rows by viewModel.rows.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
@@ -67,8 +70,8 @@ fun AppListScreen(
             TopAppBar(
                 title = { Text("LockApp") },
                 actions = {
-                    IconButton(onClick = onOpenPermissions) {
-                        Icon(Icons.Filled.Security, contentDescription = "Permisos")
+                    IconButton(onClick = onOpenDiagnostics) {
+                        Icon(Icons.Filled.HealthAndSafety, contentDescription = "Diagnóstico")
                     }
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Filled.Settings, contentDescription = "Ajustes")
@@ -87,6 +90,20 @@ fun AppListScreen(
                     icon = Icons.Filled.Warning,
                     text = "El servicio de accesibilidad está desactivado: las apps no se bloquearán. Toca para activarlo.",
                     onClick = onOpenPermissions,
+                )
+            }
+            if (accessibilityEnabled && !serviceResponding) {
+                Banner(
+                    icon = Icons.Filled.Warning,
+                    text = "LockApp está activado pero no responde. Toca para abrir el diagnóstico.",
+                    onClick = onOpenDiagnostics,
+                )
+            }
+            if (crashToReview) {
+                Banner(
+                    icon = Icons.Filled.Warning,
+                    text = "LockApp se cerró por un error. Toca para ver el diagnóstico.",
+                    onClick = onOpenDiagnostics,
                 )
             }
             if (paused) {

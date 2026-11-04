@@ -19,6 +19,8 @@ import androidx.compose.material.icons.filled.PauseCircleFilled
 import androidx.compose.material.icons.filled.ScreenLockPortrait
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -47,8 +49,10 @@ fun SettingsScreen(
     onPausedChange: (Boolean) -> Unit,
     onGraceChange: (GracePeriod) -> Unit,
     onRelockChange: (Boolean) -> Unit,
+    onProtectRecentsChange: (Boolean) -> Unit,
     onOpenBackground: () -> Unit,
     onOpenPermissions: () -> Unit,
+    onOpenDiagnostics: () -> Unit,
     onLockNow: () -> Unit,
 ) {
     Scaffold(
@@ -92,6 +96,14 @@ fun SettingsScreen(
                         enabled = biometricHardware,
                     )
                 },
+            )
+            ListItem(
+                headlineContent = { Text("Proteger Recientes") },
+                supportingContent = {
+                    Text("Pide el PIN maestro al abrir Recientes para que nadie vea el contenido de tus apps")
+                },
+                leadingContent = { Icon(Icons.Filled.VisibilityOff, contentDescription = null) },
+                trailingContent = { Switch(checked = settings.protectRecents, onCheckedChange = onProtectRecentsChange) },
             )
             ListItem(
                 headlineContent = { Text("Pausar todos los bloqueos") },
@@ -138,6 +150,12 @@ fun SettingsScreen(
 
             HorizontalDivider()
             SectionTitle("Sistema")
+            ListItem(
+                headlineContent = { Text("Diagnóstico") },
+                supportingContent = { Text("Comprueba que todo funciona y reinicia la protección") },
+                leadingContent = { Icon(Icons.Filled.HealthAndSafety, contentDescription = null) },
+                modifier = Modifier.clickable(onClick = onOpenDiagnostics),
+            )
             ListItem(
                 headlineContent = { Text("Permisos y batería") },
                 supportingContent = { Text("Comprueba que LockApp puede funcionar siempre") },

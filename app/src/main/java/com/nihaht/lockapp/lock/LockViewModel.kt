@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nihaht.lockapp.appContainer
 import com.nihaht.lockapp.data.LockBackground
+import com.nihaht.lockapp.diagnostics.launchSafe
 import com.nihaht.lockapp.ui.components.BiometricHelper
 import com.nihaht.lockapp.ui.components.PinEntryController
 import com.nihaht.lockapp.security.VerifyResult
@@ -16,7 +17,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 data class LockUiState(
@@ -63,13 +63,13 @@ class LockViewModel(application: Application) : AndroidViewModel(application) {
             packageName = packageName,
             background = settingsNow?.background ?: LockBackground.Gradient(0),
         )
-        loadJob = viewModelScope.launch {
+        loadJob = launchSafe(container.errors, "No se pudieron cargar los datos de la app bloqueada") {
             val settings = container.settingsRepository.settings.first()
             val app = container.lockedAppsRepository.lockedApps.first()[packageName]
             if (app == null) {
                 // Ya no está bloqueada (se quitó el bloqueo mientras tanto).
                 _state.update { it.copy(unlocked = true) }
-                return@launch
+                return@launchSafe
             }
             val label = withContext(Dispatchers.IO) { container.installedApps.label(packageName) }
             val icon = container.installedApps.icon(packageName, ICON_SIZE_PX)
@@ -95,7 +95,7 @@ class LockViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onBiometricSuccess() {
         val packageName = _state.value.packageName ?: return
-        viewModelScope.launch { container.authenticator.resetAttempts(packageName) }
+        launchSafe(container.errors, "No se pudo completar el desbloqueo con huella") { container.authenticator.resetAttempts(packageName) }
         markUnlocked()
     }
 

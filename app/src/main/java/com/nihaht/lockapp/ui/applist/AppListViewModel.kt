@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.nihaht.lockapp.appContainer
 import com.nihaht.lockapp.data.InstalledApp
 import com.nihaht.lockapp.data.LockedApp
+import com.nihaht.lockapp.diagnostics.launchSafe
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -13,7 +14,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
 
@@ -64,11 +64,16 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun refresh() {
-        viewModelScope.launch {
-            val excluded = container.excludedPackages
-            withContext(Dispatchers.IO) { excluded.refresh() }
-            installed.value = container.installedApps.launchableApps()
-                .filter { excluded.canBeLocked(it.packageName) }
+        launchSafe(container.errors, "No se pudo leer la lista de apps") {
+            try {
+                val excluded = container.excludedPackages
+                withContext(Dispatchers.IO) { excluded.refresh() }
+                installed.value = container.installedApps.launchableApps()
+                    .filter { excluded.canBeLocked(it.packageName) }
+            } catch (e: Exception) {
+                if (installed.value == null) installed.value = emptyList()
+                throw e
+            }
         }
     }
 
@@ -87,7 +92,7 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
     /** Bloquea la app con su propio PIN, o cambia el PIN si ya estaba bloqueada. */
     fun lockApp(packageName: String, pin: String, allowBiometric: Boolean, onDone: () -> Unit) {
         if (_busy.value) return
-        viewModelScope.launch {
+        launchSafe(container.errors, "No se pudo guardar el PIN de la app") {
             _busy.value = true
             try {
                 val credential = container.authenticator.createCredential(pin)
@@ -104,11 +109,11 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun setAllowBiometric(packageName: String, allow: Boolean) {
-        viewModelScope.launch { container.lockedAppsRepository.setAllowBiometric(packageName, allow) }
+        launchSafe(container.errors, "No se pudo cambiar el ajuste de huella") { container.lockedAppsRepository.setAllowBiometric(packageName, allow) }
     }
 
     fun removeLock(packageName: String) {
-        viewModelScope.launch {
+        launchSafe(container.errors, "No se pudo quitar el bloqueo") {
             container.lockedAppsRepository.remove(packageName)
             container.authenticator.resetAttempts(packageName)
             container.sessions.lock(packageName)

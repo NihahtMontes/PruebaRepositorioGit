@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import com.nihaht.lockapp.appContainer
 import com.nihaht.lockapp.permissions.PermissionChecker
 import com.nihaht.lockapp.permissions.PermissionStatus
 
@@ -136,10 +137,14 @@ fun PermissionsScreen(
                     "Así Android lo trata como un servicio activo.",
                 actionLabel = "Permitir notificaciones",
                 onAction = {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    } else {
-                        context.safeStart(PermissionChecker.notificationSettingsIntent(context))
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            context.safeStart(PermissionChecker.notificationSettingsIntent(context))
+                        }
+                    } catch (e: Exception) {
+                        context.appContainer.errors.report("No se pudo pedir el permiso de notificaciones", e)
                     }
                 },
             )
@@ -274,6 +279,8 @@ private fun Context.safeStart(intent: Intent, fallback: (() -> Unit)? = null) {
     try {
         startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     } catch (e: ActivityNotFoundException) {
-        fallback?.invoke()
+        if (fallback != null) fallback() else appContainer.errors.report("Este teléfono no tiene esa pantalla de Ajustes", e)
+    } catch (e: Exception) {
+        appContainer.errors.report("No se pudo abrir Ajustes", e)
     }
 }

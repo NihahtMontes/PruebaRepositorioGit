@@ -42,6 +42,8 @@ data class AppSettings(
     val gracePeriod: GracePeriod = GracePeriod.NONE,
     val relockOnScreenOff: Boolean = true,
     val paused: Boolean = false,
+    /** Pide el PIN maestro al abrir Recientes para que no se vean las miniaturas. */
+    val protectRecents: Boolean = true,
     val background: LockBackground = LockBackground.Gradient(0),
 ) {
     val hasMasterPin: Boolean get() = masterCredential != null
@@ -60,6 +62,7 @@ class SettingsRepository(context: Context) {
                 gracePeriod = GracePeriod.entries.firstOrNull { it.name == p[GRACE] } ?: GracePeriod.NONE,
                 relockOnScreenOff = p[RELOCK_SCREEN_OFF] ?: true,
                 paused = p[PAUSED] ?: false,
+                protectRecents = p[PROTECT_RECENTS] ?: true,
                 background = when (p[BG_TYPE]) {
                     BG_SOLID -> LockBackground.Solid(p[BG_VALUE] ?: DEFAULT_SOLID)
                     BG_IMAGE -> LockBackground.Image(p[BG_VERSION] ?: 0L)
@@ -88,6 +91,10 @@ class SettingsRepository(context: Context) {
         store.edit { it[PAUSED] = paused }
     }
 
+    suspend fun setProtectRecents(enabled: Boolean) {
+        store.edit { it[PROTECT_RECENTS] = enabled }
+    }
+
     suspend fun setBackground(background: LockBackground) {
         store.edit { p ->
             when (background) {
@@ -113,6 +120,7 @@ class SettingsRepository(context: Context) {
         val GRACE = stringPreferencesKey("grace_period")
         val RELOCK_SCREEN_OFF = booleanPreferencesKey("relock_screen_off")
         val PAUSED = booleanPreferencesKey("paused")
+        val PROTECT_RECENTS = booleanPreferencesKey("protect_recents")
         val BG_TYPE = stringPreferencesKey("bg_type")
         val BG_VALUE = intPreferencesKey("bg_value")
         val BG_VERSION = longPreferencesKey("bg_version")

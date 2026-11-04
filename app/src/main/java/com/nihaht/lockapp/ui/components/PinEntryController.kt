@@ -3,7 +3,9 @@ package com.nihaht.lockapp.ui.components
 import android.os.SystemClock
 import com.nihaht.lockapp.security.PinHasher
 import com.nihaht.lockapp.security.VerifyResult
+import com.nihaht.lockapp.diagnostics.ErrorLog
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -50,6 +52,14 @@ class PinEntryController(
 
     private var countdownJob: Job? = null
 
+    /** Si algo falla, se muestra un mensaje en vez de cerrar la app. */
+    private val failSafe = CoroutineExceptionHandler { _, e ->
+        ErrorLog.record("Teclado de PIN", e)
+        _state.update {
+            it.copy(pin = "", checking = false, isError = true, message = "Ha ocurrido un error. Inténtalo de nuevo")
+        }
+    }
+
     fun reset() {
         countdownJob?.cancel()
         _state.value = PinEntryState()
@@ -74,7 +84,7 @@ class PinEntryController(
             return
         }
         _state.update { it.copy(checking = true) }
-        scope.launch {
+        scope.launch(failSafe) {
             val result = try {
                 verify(current.pin)
             } catch (e: CancellationException) {
@@ -119,7 +129,7 @@ class PinEntryController(
         if (ms <= 0) return
         countdownJob?.cancel()
         val end = SystemClock.elapsedRealtime() + ms
-        countdownJob = scope.launch {
+        countdownJob = scope.launch(failSafe) {
             var shownSeconds = -1L
             while (true) {
                 val left = end - SystemClock.elapsedRealtime()
