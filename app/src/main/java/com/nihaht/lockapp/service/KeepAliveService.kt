@@ -42,7 +42,30 @@ class KeepAliveService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onCreate() {
+        super.onCreate()
+        // Android exige mostrar la notificación pocos segundos después de
+        // startForegroundService(); si no, cierra la app entera. Por eso es lo
+        // primero que se hace, antes de cualquier otro trabajo.
+        promoteToForeground()
+        running = true
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Cada petición de arranque también exige su llamada a startForeground.
+        promoteToForeground()
+        try {
+            appContainer.status.keepAliveRunning = true
+            watchAccessibilitySetting()
+            startPeriodicCheck()
+            check()
+        } catch (e: Exception) {
+            ErrorLog.record("Vigilancia del servicio en segundo plano", e)
+        }
+        return START_STICKY
+    }
+
+    private fun promoteToForeground() {
         try {
             Notifications.ensureChannels(this)
             val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -50,17 +73,10 @@ class KeepAliveService : Service() {
             } else {
                 0
             }
-            ServiceCompat.startForeground(this, Notifications.SERVICE_ID, Notifications.service(this, statusText()), type)
-            appContainer.status.keepAliveRunning = true
-            watchAccessibilitySetting()
-            startPeriodicCheck()
-            check()
+            ServiceCompat.startForeground(this, Notifications.SERVICE_ID, Notifications.service(this, "LockApp activo"), type)
         } catch (e: Exception) {
-            ErrorLog.record("No se pudo mantener LockApp en segundo plano", e)
-            stopSelf()
-            return START_NOT_STICKY
+            ErrorLog.record("No se pudo mostrar la notificación del servicio", e)
         }
-        return START_STICKY
     }
 
     /** Reacciona al instante si alguien desactiva el servicio de accesibilidad. */
@@ -138,6 +154,7 @@ class KeepAliveService : Service() {
     }
 
     override fun onDestroy() {
+        running = false
         appContainer.status.keepAliveRunning = false
         observer?.let { contentResolver.unregisterContentObserver(it) }
         observer = null
@@ -149,7 +166,12 @@ class KeepAliveService : Service() {
         private const val CHECK_INTERVAL_MS = 60_000L
         private const val NOT_RESPONDING_MS = 2 * 60_000L
 
+        /** true mientras el servicio está creado: evita pedir arranques repetidos. */
+        @Volatile
+        private var running = false
+
         fun start(context: Context) {
+            if (running) return
             try {
                 ContextCompat.startForegroundService(context, Intent(context, KeepAliveService::class.java))
             } catch (e: IllegalStateException) {
@@ -166,6 +188,7 @@ class KeepAliveService : Service() {
             } catch (e: RuntimeException) {
                 ErrorLog.record("Detener el servicio en segundo plano", e)
             }
+            running = false
             start(context)
         }
     }
