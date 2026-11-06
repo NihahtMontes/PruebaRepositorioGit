@@ -6,6 +6,15 @@ App Android para uso personal que bloquea las aplicaciones que elijas (WhatsApp,
 - Los PIN nunca se guardan en texto plano: solo un hash PBKDF2-HMAC-SHA256 con sal aleatoria.
 - Kotlin, Jetpack Compose, Material 3, DataStore. minSdk 26, targetSdk 34.
 
+## Métodos de detección (Acceso al uso vs Accesibilidad)
+
+LockApp puede saber qué app abres de dos formas. Se elige en **Ajustes > Método de detección**.
+
+- **Acceso al uso (recomendado, por defecto).** Usa el permiso "Acceso al uso" + "Mostrar sobre otras apps". Solo ve el *nombre* de la app en primer plano; no puede leer la pantalla ni lo que escribes. Es compatible con apps de banca, que se niegan a funcionar cuando hay un servicio de accesibilidad activo. Inconveniente: comprueba la app cada ~0,2 s, así que en teléfonos lentos puede verse un parpadeo mínimo de la app antes de que salte el PIN. En este modo la "Protección de Recientes" no está disponible.
+- **Accesibilidad.** Instantáneo (sin parpadeo) y permite proteger Recientes, pero las apps de banca con antifraude se bloquean mientras esté activo.
+
+> Nota de seguridad: LockApp **no** oculta su servicio ni burla la detección de las apps de banca. Esa es la técnica del malware bancario. El modo "Acceso al uso" resuelve el conflicto usando un permiso de menor privilegio y legítimo, no esquivando la protección del banco.
+
 ## Cómo funciona
 
 | Elemento | Qué hace |

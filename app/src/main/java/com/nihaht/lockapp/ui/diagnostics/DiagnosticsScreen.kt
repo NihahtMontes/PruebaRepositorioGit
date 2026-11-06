@@ -47,7 +47,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 fun DiagnosticsScreen(
     viewModel: DiagnosticsViewModel,
     onBack: () -> Unit,
-    onOpenAccessibilitySettings: () -> Unit,
     onOpenPermissions: () -> Unit,
     onCopied: () -> Unit,
 ) {
@@ -95,13 +94,8 @@ fun DiagnosticsScreen(
                 enabled = !working,
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(if (working) "Reiniciando…" else "Reiniciar protección") }
-            if (current.accessibilityProblem) {
-                OutlinedButton(onClick = onOpenAccessibilitySettings, modifier = Modifier.fillMaxWidth()) {
-                    Text("Abrir ajustes de accesibilidad")
-                }
-            }
             OutlinedButton(onClick = onOpenPermissions, modifier = Modifier.fillMaxWidth()) {
-                Text("Permisos y batería")
+                Text(if (current.accessibilityProblem) "Configurar permisos" else "Permisos y batería")
             }
 
             HorizontalDivider()

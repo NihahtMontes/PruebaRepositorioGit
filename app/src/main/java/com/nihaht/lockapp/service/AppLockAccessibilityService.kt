@@ -11,7 +11,6 @@ import androidx.core.content.ContextCompat
 import com.nihaht.lockapp.AppContainer
 import com.nihaht.lockapp.appContainer
 import com.nihaht.lockapp.diagnostics.ErrorLog
-import com.nihaht.lockapp.lock.LockActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -29,9 +28,6 @@ class AppLockAccessibilityService : AccessibilityService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var screenReceiver: BroadcastReceiver? = null
     private var shield: RecentsShield? = null
-
-    /** Última app "real" en primer plano (sin contar ventanas del sistema). */
-    private var foregroundPackage: String? = null
 
     /** Hasta cuándo se puede ver Recientes sin PIN (tras desbloquearlo). */
     private var recentsAllowedUntil = 0L
@@ -72,22 +68,7 @@ class AppLockAccessibilityService : AccessibilityService() {
     }
 
     private fun onForeground(packageName: String) {
-        val excluded = container.excludedPackages
-        if (excluded.isTransient(packageName)) return
-        foregroundPackage = packageName
-
-        val settings = container.currentSettings()
-        val isLocked = !settings.paused &&
-            !excluded.isLauncher(packageName) &&
-            !isSettingsBypassed(packageName) &&
-            container.currentLockedApps().containsKey(packageName)
-
-        val mustLock = container.sessions.onForeground(
-            packageName = packageName,
-            isLocked = isLocked,
-            graceMs = settings.gracePeriod.millis,
-        )
-        if (mustLock) showLockScreen(packageName)
+        container.lockEngine.onForeground(packageName)
     }
 
     /**
@@ -121,24 +102,6 @@ class AppLockAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun isSettingsBypassed(packageName: String): Boolean =
-        packageName in container.excludedPackages.settingsPackages &&
-            SystemClock.elapsedRealtime() < container.settingsBypassUntil
-
-    /**
-     * Se lanza en cada evento de la app bloqueada, sin filtrar repeticiones: si la
-     * app abre otra pantalla (p. ej. tras su splash) la de bloqueo vuelve encima.
-     * LockActivity es singleTask, así que repetir el lanzamiento solo la reutiliza.
-     */
-    private fun showLockScreen(packageName: String) {
-        try {
-            startActivity(LockActivity.intent(this, packageName))
-            container.status.noteLock()
-        } catch (e: Exception) {
-            ErrorLog.record("Mostrar la pantalla de bloqueo", e)
-        }
-    }
-
     private fun registerScreenReceiver() {
         if (screenReceiver != null) return
         val receiver = object : BroadcastReceiver() {
@@ -166,15 +129,7 @@ class AppLockAccessibilityService : AccessibilityService() {
     private fun onScreenOff() {
         recentsAllowedUntil = 0L
         shield?.hide()
-        val settings = container.currentSettings()
-        if (!settings.relockOnScreenOff) return
-        container.sessions.lockAll()
-        // Al volver a encender la pantalla puede no llegar ningún evento de la app
-        // que estaba abierta, así que se deja la pantalla de bloqueo puesta ya.
-        val current = foregroundPackage ?: return
-        if (!settings.paused && container.currentLockedApps().containsKey(current)) {
-            showLockScreen(current)
-        }
+        container.lockEngine.onScreenOff()
     }
 
     override fun onInterrupt() = Unit

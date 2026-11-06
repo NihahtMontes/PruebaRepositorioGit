@@ -158,6 +158,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setBiometricEnabled(enabled: Boolean) = update { container.settingsRepository.setBiometricEnabled(enabled) }
 
+    fun setDetectionMode(mode: com.nihaht.lockapp.data.DetectionMode) = update {
+        container.settingsRepository.setDetectionMode(mode)
+        container.sessions.lockAll()
+        // Reinicia el servicio para que arranque (o pare) la detección por uso.
+        com.nihaht.lockapp.service.KeepAliveService.restart(getApplication())
+    }
+
     fun setGracePeriod(period: GracePeriod) = update {
         container.settingsRepository.setGracePeriod(period)
         container.sessions.lockAll()

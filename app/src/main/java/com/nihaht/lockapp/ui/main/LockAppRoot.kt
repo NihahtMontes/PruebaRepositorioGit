@@ -114,15 +114,19 @@ private fun MainNavigation(
     val navController = rememberNavController()
     val busy by mainViewModel.busy.collectAsStateWithLifecycle()
     val openDiagnostics by mainViewModel.openDiagnostics.collectAsStateWithLifecycle()
-    var accessibilityEnabled by remember { mutableStateOf(PermissionChecker.isAccessibilityServiceEnabled(context)) }
+    var protectionReady by remember {
+        mutableStateOf(PermissionChecker.isProtectionReady(context, settings.detectionMode))
+    }
     var serviceResponding by remember { mutableStateOf(true) }
     var crashToReview by remember { mutableStateOf(ErrorLog.hasUnseenCrash()) }
-    // Si falta el servicio de accesibilidad se empieza por el asistente de permisos.
-    val start = remember { if (accessibilityEnabled) Routes.APPS else Routes.ONBOARDING }
+    // Si el modo elegido no tiene sus permisos, se empieza por el asistente.
+    val start = remember { if (protectionReady) Routes.APPS else Routes.ONBOARDING }
 
-    LifecycleResumeEffect(Unit) {
-        accessibilityEnabled = PermissionChecker.isAccessibilityServiceEnabled(context)
-        serviceResponding = !accessibilityEnabled || context.appContainer.status.accessibilityConnected
+    LifecycleResumeEffect(settings.detectionMode) {
+        protectionReady = PermissionChecker.isProtectionReady(context, settings.detectionMode)
+        serviceResponding = settings.detectionMode != com.nihaht.lockapp.data.DetectionMode.ACCESSIBILITY ||
+            !PermissionChecker.isAccessibilityServiceEnabled(context) ||
+            context.appContainer.status.accessibilityConnected
         crashToReview = ErrorLog.hasUnseenCrash()
         appListViewModel.refresh()
         onPauseOrDispose { }
@@ -140,6 +144,7 @@ private fun MainNavigation(
         composable(Routes.ONBOARDING) { entry ->
             PermissionsScreen(
                 isOnboarding = true,
+                detectionMode = settings.detectionMode,
                 onOpeningSystemSettings = mainViewModel::allowSystemSettingsTemporarily,
                 onContinue = {
                     entry.ifResumed {
@@ -154,6 +159,7 @@ private fun MainNavigation(
         composable(Routes.PERMISSIONS) { entry ->
             PermissionsScreen(
                 isOnboarding = false,
+                detectionMode = settings.detectionMode,
                 onOpeningSystemSettings = mainViewModel::allowSystemSettingsTemporarily,
                 onContinue = { entry.ifResumed { navController.popBackStack() } },
                 onBack = { entry.ifResumed { navController.popBackStack() } },
@@ -163,7 +169,7 @@ private fun MainNavigation(
             AppListScreen(
                 viewModel = appListViewModel,
                 paused = settings.paused,
-                accessibilityEnabled = accessibilityEnabled,
+                protectionReady = protectionReady,
                 serviceResponding = serviceResponding,
                 crashToReview = crashToReview,
                 onOpenApp = { pkg -> entry.ifResumed { navController.navigate(Routes.app(pkg)) } },
@@ -199,6 +205,7 @@ private fun MainNavigation(
                 onPausedChange = mainViewModel::setPaused,
                 onGraceChange = mainViewModel::setGracePeriod,
                 onRelockChange = mainViewModel::setRelockOnScreenOff,
+                onDetectionModeChange = mainViewModel::setDetectionMode,
                 onProtectRecentsChange = mainViewModel::setProtectRecents,
                 onOpenBackground = { entry.ifResumed { navController.navigate(Routes.BACKGROUND) } },
                 onOpenPermissions = { entry.ifResumed { navController.navigate(Routes.PERMISSIONS) } },
@@ -234,10 +241,6 @@ private fun MainNavigation(
             DiagnosticsScreen(
                 viewModel = diagnosticsViewModel,
                 onBack = { entry.ifResumed { navController.popBackStack() } },
-                onOpenAccessibilitySettings = {
-                    mainViewModel.allowSystemSettingsTemporarily()
-                    context.openSystemScreen(PermissionChecker.accessibilitySettingsIntent())
-                },
                 onOpenPermissions = { entry.ifResumed { navController.navigate(Routes.PERMISSIONS) } },
                 onCopied = { context.appContainer.errors.info("Informe copiado. Pégalo en el chat.") },
             )
@@ -245,10 +248,3 @@ private fun MainNavigation(
     }
 }
 
-private fun Context.openSystemScreen(intent: Intent) {
-    try {
-        startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    } catch (e: ActivityNotFoundException) {
-        appContainer.errors.report("No se pudo abrir esa pantalla de Ajustes", e)
-    }
-}

@@ -56,11 +56,11 @@ class MainFlowTest {
 
         // 3. Lista de apps con el aviso de que no se está bloqueando.
         waitText("Buscar app")
-        waitText("servicio de accesibilidad está desactivado")
+        waitText("no está protegiendo tus apps")
 
         // 4. Diagnóstico: detecta el problema y "Reiniciar protección" no rompe nada.
         compose.onNodeWithContentDescription("Diagnóstico").performClick()
-        waitText("Servicio de accesibilidad")
+        waitText("Acceso al uso")
         waitText("Hay problemas que revisar")
         compose.onNodeWithText("Reiniciar protección").performScrollTo().performClick()
         waitText("Reiniciar protección")

@@ -15,6 +15,7 @@ import com.nihaht.lockapp.diagnostics.ProtectionStatus
 import com.nihaht.lockapp.security.Authenticator
 import com.nihaht.lockapp.security.UnlockSessionManager
 import com.nihaht.lockapp.service.ExcludedPackages
+import com.nihaht.lockapp.service.LockEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -40,6 +41,7 @@ class AppContainer(context: Context) {
     val authenticator = Authenticator(appContext, settingsRepository, lockedAppsRepository, lockoutRepository)
     val sessions = UnlockSessionManager { SystemClock.elapsedRealtime() }
     val status = ProtectionStatus()
+    val lockEngine = LockEngine(appContext)
     val errors = ErrorReporter()
 
     // Copias en memoria para que el servicio de accesibilidad decida al instante, sin esperar al disco.

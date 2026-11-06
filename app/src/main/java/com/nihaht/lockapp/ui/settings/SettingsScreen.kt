@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.nihaht.lockapp.data.AppSettings
+import com.nihaht.lockapp.data.DetectionMode
 import com.nihaht.lockapp.data.GracePeriod
 
 @Composable
@@ -49,6 +50,7 @@ fun SettingsScreen(
     onPausedChange: (Boolean) -> Unit,
     onGraceChange: (GracePeriod) -> Unit,
     onRelockChange: (Boolean) -> Unit,
+    onDetectionModeChange: (DetectionMode) -> Unit,
     onProtectRecentsChange: (Boolean) -> Unit,
     onOpenBackground: () -> Unit,
     onOpenPermissions: () -> Unit,
@@ -100,16 +102,41 @@ fun SettingsScreen(
             ListItem(
                 headlineContent = { Text("Proteger Recientes") },
                 supportingContent = {
-                    Text("Pide el PIN maestro al abrir Recientes para que nadie vea el contenido de tus apps")
+                    Text(
+                        if (settings.detectionMode == DetectionMode.ACCESSIBILITY)
+                            "Pide el PIN maestro al abrir Recientes para que nadie vea el contenido de tus apps"
+                        else "Pide el PIN al abrir Recientes. Solo funciona con el método \"Accesibilidad\".",
+                    )
                 },
                 leadingContent = { Icon(Icons.Filled.VisibilityOff, contentDescription = null) },
-                trailingContent = { Switch(checked = settings.protectRecents, onCheckedChange = onProtectRecentsChange) },
+                trailingContent = {
+                    Switch(
+                        checked = settings.protectRecents && settings.detectionMode == DetectionMode.ACCESSIBILITY,
+                        onCheckedChange = onProtectRecentsChange,
+                        enabled = settings.detectionMode == DetectionMode.ACCESSIBILITY,
+                    )
+                },
             )
             ListItem(
                 headlineContent = { Text("Pausar todos los bloqueos") },
                 supportingContent = { Text("Ninguna app pedirá PIN hasta que lo reactives") },
                 leadingContent = { Icon(Icons.Filled.PauseCircleFilled, contentDescription = null) },
                 trailingContent = { Switch(checked = settings.paused, onCheckedChange = onPausedChange) },
+            )
+
+            HorizontalDivider()
+            SectionTitle("Método de detección")
+            DetectionRow(
+                title = "Acceso al uso (recomendado)",
+                subtitle = "Compatible con apps de banca. Puede haber un parpadeo mínimo al abrir una app bloqueada.",
+                selected = settings.detectionMode == DetectionMode.USAGE_ACCESS,
+                onSelect = { onDetectionModeChange(DetectionMode.USAGE_ACCESS) },
+            )
+            DetectionRow(
+                title = "Accesibilidad",
+                subtitle = "Instantáneo y protege Recientes, pero algunas apps de banca no funcionan si está activo.",
+                selected = settings.detectionMode == DetectionMode.ACCESSIBILITY,
+                onSelect = { onDetectionModeChange(DetectionMode.ACCESSIBILITY) },
             )
 
             HorizontalDivider()
@@ -175,6 +202,16 @@ fun SettingsScreen(
             )
         }
     }
+}
+
+@Composable
+private fun DetectionRow(title: String, subtitle: String, selected: Boolean, onSelect: () -> Unit) {
+    ListItem(
+        headlineContent = { Text(title) },
+        supportingContent = { Text(subtitle) },
+        leadingContent = { RadioButton(selected = selected, onClick = null) },
+        modifier = Modifier.selectable(selected = selected, role = Role.RadioButton, onClick = onSelect),
+    )
 }
 
 @Composable

@@ -1,8 +1,10 @@
 package com.nihaht.lockapp.service
 
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.database.ContentObserver
 import android.os.Build
@@ -14,6 +16,7 @@ import android.provider.Settings
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.nihaht.lockapp.appContainer
+import com.nihaht.lockapp.data.DetectionMode
 import com.nihaht.lockapp.diagnostics.ErrorLog
 import com.nihaht.lockapp.permissions.PermissionChecker
 import kotlinx.coroutines.CoroutineScope
@@ -26,19 +29,23 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
- * Servicio en primer plano ligero. Mantiene el proceso con prioridad alta y
- * vigila que la protección siga activa: si el servicio de accesibilidad se
- * desactiva o deja de responder, avisa con una notificación.
+ * Servicio en primer plano. Mantiene el proceso con prioridad alta y, en el
+ * modo "Acceso al uso", es quien detecta la app en primer plano (consultando
+ * periódicamente) y manda bloquear. También vigila que la protección siga
+ * activa y avisa si deja de funcionar.
  */
 class KeepAliveService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var observer: ContentObserver? = null
+    private var screenReceiver: BroadcastReceiver? = null
     private var checkJob: Job? = null
+    private var pollJob: Job? = null
     private var lastProblem: String? = null
+    private val detector by lazy { UsageForegroundDetector(this) }
 
-    /** Desde cuándo el servicio de accesibilidad está activado pero sin conectar (0 = conectado). */
-    private var notConnectedSince = 0L
+    /** Desde cuándo el modo elegido está sin poder proteger (0 = correcto). */
+    private var notReadySince = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -52,11 +59,12 @@ class KeepAliveService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // Cada petición de arranque también exige su llamada a startForeground.
         promoteToForeground()
         try {
             appContainer.status.keepAliveRunning = true
             watchAccessibilitySetting()
+            registerScreenReceiver()
+            startUsagePolling()
             startPeriodicCheck()
             check()
         } catch (e: Exception) {
@@ -77,6 +85,59 @@ class KeepAliveService : Service() {
         } catch (e: Exception) {
             ErrorLog.record("No se pudo mostrar la notificación del servicio", e)
         }
+    }
+
+    /** Modo "Acceso al uso": mira cada ~0,2 s qué app está delante y manda bloquear. */
+    private fun startUsagePolling() {
+        if (pollJob?.isActive == true) return
+        pollJob = scope.launch {
+            while (isActive) {
+                try {
+                    if (usagePollActive()) {
+                        detector.poll()?.let { appContainer.lockEngine.onForeground(it) }
+                    }
+                } catch (e: Exception) {
+                    ErrorLog.record("Detección por acceso al uso", e)
+                }
+                delay(POLL_INTERVAL_MS)
+            }
+        }
+    }
+
+    private fun usagePollActive(): Boolean {
+        val settings = appContainer.settingsState.value ?: return false
+        return settings.detectionMode == DetectionMode.USAGE_ACCESS &&
+            PermissionChecker.hasUsageAccess(this)
+    }
+
+    private fun registerScreenReceiver() {
+        if (screenReceiver != null) return
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                try {
+                    when (intent.action) {
+                        // Solo actúa en modo "Acceso al uso"; en accesibilidad lo hace su propio servicio.
+                        Intent.ACTION_SCREEN_OFF ->
+                            if (currentMode() == DetectionMode.USAGE_ACCESS) {
+                                detector.reset()
+                                appContainer.lockEngine.onScreenOff()
+                            }
+                        Intent.ACTION_USER_PRESENT -> {
+                            detector.reset()
+                            appContainer.excludedPackages.refresh()
+                        }
+                    }
+                } catch (e: Exception) {
+                    ErrorLog.record("Pantalla apagada o encendida (servicio)", e)
+                }
+            }
+        }
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_USER_PRESENT)
+        }
+        ContextCompat.registerReceiver(this, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
+        screenReceiver = receiver
     }
 
     /** Reacciona al instante si alguien desactiva el servicio de accesibilidad. */
@@ -123,21 +184,34 @@ class KeepAliveService : Service() {
         }
     }
 
+    private fun currentMode(): DetectionMode =
+        appContainer.settingsState.value?.detectionMode ?: DetectionMode.USAGE_ACCESS
+
     private fun currentProblem(hasLockedApps: Boolean, paused: Boolean): String? {
-        if (!hasLockedApps || paused) return null
-        val enabled = PermissionChecker.isAccessibilityServiceEnabled(this)
-        val now = SystemClock.elapsedRealtime()
-        if (enabled && !appContainer.status.accessibilityConnected) {
-            if (notConnectedSince == 0L) notConnectedSince = now
-        } else {
-            notConnectedSince = 0L
+        if (!hasLockedApps || paused) {
+            notReadySince = 0L
+            return null
         }
-        return when {
-            !enabled ->
+        val mode = currentMode()
+        val ready = PermissionChecker.isProtectionReady(this, mode)
+        val now = SystemClock.elapsedRealtime()
+        if (!ready) {
+            if (notReadySince == 0L) notReadySince = now
+        } else {
+            notReadySince = 0L
+        }
+        if (ready) {
+            // En accesibilidad, además avisa si el servicio está activado pero no conecta.
+            if (mode == DetectionMode.ACCESSIBILITY && !appContainer.status.accessibilityConnected) {
+                return "LockApp está activado pero no responde. Toca para abrir el diagnóstico."
+            }
+            return null
+        }
+        return when (mode) {
+            DetectionMode.USAGE_ACCESS ->
+                "A LockApp le falta un permiso (acceso al uso o mostrar sobre otras apps) y tus apps no se están bloqueando. Toca para revisarlo."
+            DetectionMode.ACCESSIBILITY ->
                 "El servicio de accesibilidad está desactivado y tus apps no se están bloqueando. Toca para revisarlo."
-            notConnectedSince != 0L && now - notConnectedSince > NOT_RESPONDING_MS ->
-                "LockApp está activado pero no responde. Toca para abrir el diagnóstico."
-            else -> null
         }
     }
 
@@ -146,7 +220,7 @@ class KeepAliveService : Service() {
         val count = container.lockedAppsState.value?.size ?: 0
         return when {
             container.settingsState.value?.paused == true -> "Bloqueos en pausa"
-            !PermissionChecker.isAccessibilityServiceEnabled(this) -> "Protección desactivada: toca para revisarlo"
+            !PermissionChecker.isProtectionReady(this, currentMode()) -> "Protección desactivada: toca para revisarlo"
             count == 0 -> "No hay apps bloqueadas"
             count == 1 -> "Protegiendo 1 app"
             else -> "Protegiendo $count apps"
@@ -158,13 +232,21 @@ class KeepAliveService : Service() {
         appContainer.status.keepAliveRunning = false
         observer?.let { contentResolver.unregisterContentObserver(it) }
         observer = null
+        screenReceiver?.let {
+            try {
+                unregisterReceiver(it)
+            } catch (e: IllegalArgumentException) {
+                ErrorLog.record("Quitar receptor de pantalla (servicio)", e)
+            }
+        }
+        screenReceiver = null
         scope.cancel()
         super.onDestroy()
     }
 
     companion object {
         private const val CHECK_INTERVAL_MS = 60_000L
-        private const val NOT_RESPONDING_MS = 2 * 60_000L
+        private const val POLL_INTERVAL_MS = 220L
 
         /** true mientras el servicio está creado: evita pedir arranques repetidos. */
         @Volatile

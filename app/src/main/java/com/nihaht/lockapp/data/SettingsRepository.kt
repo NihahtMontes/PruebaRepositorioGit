@@ -26,6 +26,17 @@ enum class GracePeriod(val millis: Long, val label: String) {
     MINUTES_5(300_000L, "5 minutos"),
 }
 
+/** Cómo detecta LockApp la app que pasa a primer plano. */
+enum class DetectionMode {
+    /** Permiso "Acceso al uso" + "Mostrar sobre otras apps". No usa accesibilidad,
+     *  así que las apps de banca no se bloquean. Puede haber un parpadeo mínimo. */
+    USAGE_ACCESS,
+
+    /** Servicio de accesibilidad: instantáneo y protege Recientes, pero algunas
+     *  apps de banca se niegan a funcionar si está activo. */
+    ACCESSIBILITY,
+}
+
 /** Fondo de la pantalla de bloqueo. */
 sealed interface LockBackground {
     data class Solid(val argb: Int) : LockBackground
@@ -42,6 +53,7 @@ data class AppSettings(
     val gracePeriod: GracePeriod = GracePeriod.NONE,
     val relockOnScreenOff: Boolean = true,
     val paused: Boolean = false,
+    val detectionMode: DetectionMode = DetectionMode.USAGE_ACCESS,
     /** Pide el PIN maestro al abrir Recientes para que no se vean las miniaturas. */
     val protectRecents: Boolean = true,
     val background: LockBackground = LockBackground.Gradient(0),
@@ -62,6 +74,8 @@ class SettingsRepository(context: Context) {
                 gracePeriod = GracePeriod.entries.firstOrNull { it.name == p[GRACE] } ?: GracePeriod.NONE,
                 relockOnScreenOff = p[RELOCK_SCREEN_OFF] ?: true,
                 paused = p[PAUSED] ?: false,
+                detectionMode = DetectionMode.entries.firstOrNull { it.name == p[DETECTION_MODE] }
+                    ?: DetectionMode.USAGE_ACCESS,
                 protectRecents = p[PROTECT_RECENTS] ?: true,
                 background = when (p[BG_TYPE]) {
                     BG_SOLID -> LockBackground.Solid(p[BG_VALUE] ?: DEFAULT_SOLID)
@@ -89,6 +103,10 @@ class SettingsRepository(context: Context) {
 
     suspend fun setPaused(paused: Boolean) {
         store.edit { it[PAUSED] = paused }
+    }
+
+    suspend fun setDetectionMode(mode: DetectionMode) {
+        store.edit { it[DETECTION_MODE] = mode.name }
     }
 
     suspend fun setProtectRecents(enabled: Boolean) {
@@ -121,6 +139,7 @@ class SettingsRepository(context: Context) {
         val RELOCK_SCREEN_OFF = booleanPreferencesKey("relock_screen_off")
         val PAUSED = booleanPreferencesKey("paused")
         val PROTECT_RECENTS = booleanPreferencesKey("protect_recents")
+        val DETECTION_MODE = stringPreferencesKey("detection_mode")
         val BG_TYPE = stringPreferencesKey("bg_type")
         val BG_VALUE = intPreferencesKey("bg_value")
         val BG_VERSION = longPreferencesKey("bg_version")

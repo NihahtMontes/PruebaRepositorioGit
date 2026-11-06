@@ -25,12 +25,14 @@ class WatchdogWorker(context: Context, params: WorkerParameters) : CoroutineWork
             KeepAliveService.start(context)
             val container = context.appContainer
             val hasLockedApps = container.lockedAppsRepository.lockedApps.first().isNotEmpty()
-            val paused = container.settingsRepository.settings.first().paused
-            if (hasLockedApps && !paused && !PermissionChecker.isAccessibilityServiceEnabled(context)) {
+            val settings = container.settingsRepository.settings.first()
+            if (hasLockedApps && !settings.paused &&
+                !PermissionChecker.isProtectionReady(context, settings.detectionMode)
+            ) {
                 Notifications.ensureChannels(context)
                 Notifications.showProtectionProblem(
                     context,
-                    "El servicio de accesibilidad está desactivado y tus apps no se están bloqueando. Toca para revisarlo.",
+                    "LockApp no está protegiendo tus apps: falta un permiso. Toca para revisarlo.",
                 )
             }
         } catch (e: Exception) {

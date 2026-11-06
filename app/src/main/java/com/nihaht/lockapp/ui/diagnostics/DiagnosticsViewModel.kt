@@ -8,6 +8,7 @@ import androidx.work.WorkManager
 import com.nihaht.lockapp.BuildConfig
 import com.nihaht.lockapp.appContainer
 import com.nihaht.lockapp.diagnostics.ErrorLog
+import com.nihaht.lockapp.data.DetectionMode
 import com.nihaht.lockapp.diagnostics.ago
 import com.nihaht.lockapp.diagnostics.launchSafe
 import com.nihaht.lockapp.permissions.PermissionChecker
@@ -107,8 +108,12 @@ class DiagnosticsViewModel(application: Application) : AndroidViewModel(applicat
         val status = container.status
         val settings = container.settingsRepository.settings.first()
         val locked = container.lockedAppsRepository.lockedApps.first()
+        val mode = settings.detectionMode
         val accessibilityEnabled = PermissionChecker.isAccessibilityServiceEnabled(context)
         val connected = accessibilityEnabled && status.accessibilityConnected
+        val usageAccess = PermissionChecker.hasUsageAccess(context)
+        val overlay = PermissionChecker.hasOverlay(context)
+        val ready = PermissionChecker.isProtectionReady(context, mode)
         val battery = PermissionChecker.isIgnoringBatteryOptimizations(context)
         val notifications = NotificationManagerCompat.from(context).areNotificationsEnabled()
         val watchdog = try {
@@ -120,75 +125,126 @@ class DiagnosticsViewModel(application: Application) : AndroidViewModel(applicat
             false
         }
 
-        val checks = listOf(
-            Check(
-                "Servicio de accesibilidad",
-                accessibilityEnabled,
-                if (accessibilityEnabled) "Activado en los ajustes de Android"
-                else "Desactivado: actívalo en Ajustes > Accesibilidad > Aplicaciones instaladas > LockApp",
-            ),
-            Check(
-                "Detección de apps",
-                connected,
-                when {
-                    connected -> "Funcionando · último evento ${ago(status.lastEventAt)}"
-                    accessibilityEnabled -> "Activado pero sin responder: desactívalo y vuelve a activarlo en Accesibilidad"
-                    else -> "Necesita el servicio de accesibilidad"
-                },
-            ),
-            Check(
-                "Servicio en segundo plano",
-                status.keepAliveRunning,
-                if (status.keepAliveRunning) "En marcha" else "Detenido: pulsa «Reiniciar protección»",
-            ),
-            Check(
-                "Batería sin restricciones",
-                battery,
-                if (battery) "Android no cerrará LockApp para ahorrar batería"
-                else "Android puede cerrar LockApp: quita la optimización de batería",
-            ),
-            Check(
-                "Bloqueos activos",
-                !settings.paused,
-                if (settings.paused) "Están en pausa: reactívalos en Ajustes" else "Sí",
-            ),
-            Check(
-                "Apps bloqueadas",
-                locked.isNotEmpty(),
-                if (locked.isEmpty()) "Todavía no has bloqueado ninguna app"
-                else "${locked.size} ${if (locked.size == 1) "app bloqueada" else "apps bloqueadas"}",
-                critical = false,
-            ),
-            Check(
-                "Avisos (notificaciones)",
-                notifications,
-                if (notifications) "Te avisará si la protección deja de funcionar"
-                else "Permite las notificaciones para recibir avisos si algo falla",
-                critical = false,
-            ),
-            Check(
-                "Vigilancia cada 15 minutos",
-                watchdog,
-                if (watchdog) "Programada: vuelve a arrancar LockApp si el sistema lo cierra"
-                else "No programada: pulsa «Reiniciar protección»",
-                critical = false,
-            ),
-            Check(
-                "Protección de Recientes",
-                settings.protectRecents && status.recentsDetectedAt > 0,
-                when {
-                    !settings.protectRecents -> "Desactivada en Ajustes"
-                    status.recentsDetectedAt > 0 ->
-                        "Funciona · Recientes detectado ${ago(status.recentsDetectedAt)}, protegido ${status.recentsShieldShown} veces"
-                    else -> "Aún sin comprobar: abre Recientes una vez y vuelve aquí"
-                },
-                critical = false,
-            ),
-        )
+        val checks = buildList {
+            if (mode == DetectionMode.USAGE_ACCESS) {
+                add(
+                    Check(
+                        "Acceso al uso",
+                        usageAccess,
+                        if (usageAccess) "Activado · LockApp ve qué app abres (sin leer la pantalla)"
+                        else "Desactivado: actívalo en Ajustes > Acceso al uso > LockApp",
+                    ),
+                )
+                add(
+                    Check(
+                        "Mostrar sobre otras apps",
+                        overlay,
+                        if (overlay) "Permitido · puede mostrar el PIN encima de la app"
+                        else "Desactivado: sin este permiso no aparece la pantalla de bloqueo",
+                    ),
+                )
+                add(
+                    Check(
+                        "Detección de apps",
+                        ready && status.keepAliveRunning,
+                        when {
+                            ready && status.keepAliveRunning -> "Funcionando · última app ${status.lastEventPackage ?: "ninguna"}"
+                            !ready -> "Necesita los permisos de arriba"
+                            else -> "El servicio en segundo plano está parado: pulsa «Reiniciar protección»"
+                        },
+                    ),
+                )
+            } else {
+                add(
+                    Check(
+                        "Servicio de accesibilidad",
+                        accessibilityEnabled,
+                        if (accessibilityEnabled) "Activado en los ajustes de Android"
+                        else "Desactivado: actívalo en Ajustes > Accesibilidad > Aplicaciones instaladas > LockApp",
+                    ),
+                )
+                add(
+                    Check(
+                        "Detección de apps",
+                        connected,
+                        when {
+                            connected -> "Funcionando · último evento ${ago(status.lastEventAt)}"
+                            accessibilityEnabled -> "Activado pero sin responder: desactívalo y vuelve a activarlo en Accesibilidad"
+                            else -> "Necesita el servicio de accesibilidad"
+                        },
+                    ),
+                )
+            }
+            add(
+                Check(
+                    "Servicio en segundo plano",
+                    status.keepAliveRunning,
+                    if (status.keepAliveRunning) "En marcha" else "Detenido: pulsa «Reiniciar protección»",
+                ),
+            )
+            add(
+                Check(
+                    "Batería sin restricciones",
+                    battery,
+                    if (battery) "Android no cerrará LockApp para ahorrar batería"
+                    else "Android puede cerrar LockApp: quita la optimización de batería",
+                ),
+            )
+            add(
+                Check(
+                    "Bloqueos activos",
+                    !settings.paused,
+                    if (settings.paused) "Están en pausa: reactívalos en Ajustes" else "Sí",
+                ),
+            )
+            add(
+                Check(
+                    "Apps bloqueadas",
+                    locked.isNotEmpty(),
+                    if (locked.isEmpty()) "Todavía no has bloqueado ninguna app"
+                    else "${locked.size} ${if (locked.size == 1) "app bloqueada" else "apps bloqueadas"}",
+                    critical = false,
+                ),
+            )
+            add(
+                Check(
+                    "Avisos (notificaciones)",
+                    notifications,
+                    if (notifications) "Te avisará si la protección deja de funcionar"
+                    else "Permite las notificaciones para recibir avisos si algo falla",
+                    critical = false,
+                ),
+            )
+            add(
+                Check(
+                    "Vigilancia cada 15 minutos",
+                    watchdog,
+                    if (watchdog) "Programada: vuelve a arrancar LockApp si el sistema lo cierra"
+                    else "No programada: pulsa «Reiniciar protección»",
+                    critical = false,
+                ),
+            )
+            if (mode == DetectionMode.ACCESSIBILITY) {
+                add(
+                    Check(
+                        "Protección de Recientes",
+                        settings.protectRecents && status.recentsDetectedAt > 0,
+                        when {
+                            !settings.protectRecents -> "Desactivada en Ajustes"
+                            status.recentsDetectedAt > 0 ->
+                                "Funciona · Recientes detectado ${ago(status.recentsDetectedAt)}, protegido ${status.recentsShieldShown} veces"
+                            else -> "Aún sin comprobar: abre Recientes una vez y vuelve aquí"
+                        },
+                        critical = false,
+                    ),
+                )
+            }
+        }
 
         val technical = buildList {
             add("Teléfono: ${Build.MANUFACTURER} ${Build.MODEL}")
             add("Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}) · LockApp ${BuildConfig.VERSION_NAME}")
+            add("Método: " + if (mode == DetectionMode.USAGE_ACCESS) "Acceso al uso" else "Accesibilidad")
             add("Bloqueos mostrados desde el arranque: ${status.locksShown} (último ${ago(status.lastLockAt)})")
             add("Última app detectada: ${status.lastEventPackage ?: "ninguna"}")
             status.launcherEvents().forEach { add("Launcher: $it") }
@@ -197,7 +253,7 @@ class DiagnosticsViewModel(application: Application) : AndroidViewModel(applicat
         return DiagnosticsReport(
             checks = checks,
             allOk = checks.filter { it.critical }.all { it.ok },
-            accessibilityProblem = !connected,
+            accessibilityProblem = !ready,
             errorCount = ErrorLog.count(),
             lastError = ErrorLog.lastEntry(),
             technical = technical,

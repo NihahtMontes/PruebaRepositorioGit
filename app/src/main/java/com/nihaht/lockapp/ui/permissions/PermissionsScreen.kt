@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Accessibility
 import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PhoneAndroid
@@ -50,6 +51,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.nihaht.lockapp.appContainer
+import com.nihaht.lockapp.data.DetectionMode
 import com.nihaht.lockapp.permissions.PermissionChecker
 import com.nihaht.lockapp.permissions.PermissionStatus
 
@@ -60,6 +62,7 @@ import com.nihaht.lockapp.permissions.PermissionStatus
 @Composable
 fun PermissionsScreen(
     isOnboarding: Boolean,
+    detectionMode: DetectionMode,
     onOpeningSystemSettings: () -> Unit,
     onContinue: () -> Unit,
     onBack: () -> Unit,
@@ -112,11 +115,36 @@ fun PermissionsScreen(
                 style = MaterialTheme.typography.bodyMedium,
             )
 
-            AccessibilityCard(status, ::openSettings, context)
+            val ready = PermissionChecker.isProtectionReady(context, detectionMode)
+
+            if (detectionMode == DetectionMode.USAGE_ACCESS) {
+                PermissionCard(
+                    icon = Icons.Filled.History,
+                    title = "1. Acceso al uso (obligatorio)",
+                    granted = status.usageAccess,
+                    description = "Permite a LockApp saber qué app abres, sin accesibilidad. Solo ve el " +
+                        "nombre de la app: no puede leer la pantalla ni lo que escribes. Por eso tu app " +
+                        "de banca no se bloqueará por este permiso.\n\n" +
+                        "En la lista que se abre, busca LockApp y actívalo.",
+                    actionLabel = "Abrir Acceso al uso",
+                    onAction = { openSettings(PermissionChecker.usageAccessSettingsIntent()) },
+                )
+                PermissionCard(
+                    icon = Icons.Filled.Layers,
+                    title = "2. Mostrar sobre otras apps (obligatorio)",
+                    granted = status.overlay,
+                    description = "Deja que la pantalla de PIN aparezca encima de la app bloqueada. " +
+                        "Sin accesibilidad, este permiso es lo que permite mostrarla.",
+                    actionLabel = "Permitir mostrar sobre otras apps",
+                    onAction = { openSettings(PermissionChecker.overlaySettingsIntent(context)) },
+                )
+            } else {
+                AccessibilityCard(status, ::openSettings, context)
+            }
 
             PermissionCard(
                 icon = Icons.Filled.BatteryChargingFull,
-                title = "2. Batería sin restricciones",
+                title = "3. Batería sin restricciones",
                 granted = status.batteryUnrestricted,
                 description = "Evita que Android detenga LockApp para ahorrar batería. Sin esto, " +
                     "el bloqueo puede dejar de funcionar al cabo de un rato.",
@@ -131,7 +159,7 @@ fun PermissionsScreen(
 
             PermissionCard(
                 icon = Icons.Filled.Notifications,
-                title = "3. Notificaciones (recomendado)",
+                title = "4. Notificaciones (recomendado)",
                 granted = status.notifications,
                 description = "LockApp muestra una notificación discreta mientras protege tus apps. " +
                     "Así Android lo trata como un servicio activo.",
@@ -149,12 +177,14 @@ fun PermissionsScreen(
                 },
             )
 
-            PermissionCard(
-                icon = Icons.Filled.Layers,
-                title = "Mostrar sobre otras apps",
-                granted = null,
-                description = "No hace falta: la pantalla de bloqueo la abre el servicio de accesibilidad.",
-            )
+            if (detectionMode == DetectionMode.ACCESSIBILITY) {
+                PermissionCard(
+                    icon = Icons.Filled.Layers,
+                    title = "Mostrar sobre otras apps",
+                    granted = null,
+                    description = "No hace falta en este modo: la pantalla de bloqueo la abre el servicio de accesibilidad.",
+                )
+            }
 
             SamsungCard(isSamsung = PermissionChecker.isSamsung) {
                 openSettings(PermissionChecker.appDetailsIntent(context))
@@ -163,7 +193,7 @@ fun PermissionsScreen(
             if (isOnboarding) {
                 Spacer(Modifier.height(8.dp))
                 Button(onClick = onContinue, modifier = Modifier.fillMaxWidth()) {
-                    Text(if (status.accessibility) "Ir a mis apps" else "Continuar sin activar (no bloqueará)")
+                    Text(if (ready) "Ir a mis apps" else "Continuar sin activar (no bloqueará)")
                 }
             }
         }
@@ -197,7 +227,7 @@ private fun AccessibilityCard(
 private fun SamsungCard(isSamsung: Boolean, onOpenAppInfo: () -> Unit) {
     PermissionCard(
         icon = Icons.Filled.PhoneAndroid,
-        title = if (isSamsung) "4. Ajustes de Samsung (One UI)" else "4. Si tu teléfono es Samsung",
+        title = if (isSamsung) "5. Ajustes de Samsung (One UI)" else "5. Si tu teléfono es Samsung",
         granted = null,
         description = "One UI cierra las apps en segundo plano de forma agresiva. Para evitarlo:\n\n" +
             "• Ajustes > Batería > Límites de uso en segundo plano > Apps que nunca se suspenden > " +

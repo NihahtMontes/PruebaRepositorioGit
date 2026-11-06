@@ -52,7 +52,7 @@ import com.nihaht.lockapp.ui.components.AppIcon
 fun AppListScreen(
     viewModel: AppListViewModel,
     paused: Boolean,
-    accessibilityEnabled: Boolean,
+    protectionReady: Boolean,
     serviceResponding: Boolean,
     crashToReview: Boolean,
     onOpenApp: (String) -> Unit,
@@ -85,14 +85,14 @@ fun AppListScreen(
                 .padding(padding)
                 .fillMaxSize(),
         ) {
-            if (!accessibilityEnabled) {
+            if (!protectionReady) {
                 Banner(
                     icon = Icons.Filled.Warning,
-                    text = "El servicio de accesibilidad está desactivado: las apps no se bloquearán. Toca para activarlo.",
+                    text = "LockApp no está protegiendo tus apps: faltan permisos. Toca para configurarlo.",
                     onClick = onOpenPermissions,
                 )
             }
-            if (accessibilityEnabled && !serviceResponding) {
+            if (protectionReady && !serviceResponding) {
                 Banner(
                     icon = Icons.Filled.Warning,
                     text = "LockApp está activado pero no responde. Toca para abrir el diagnóstico.",
