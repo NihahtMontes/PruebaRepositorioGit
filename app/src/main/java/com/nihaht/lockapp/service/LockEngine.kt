@@ -29,17 +29,20 @@ class LockEngine(private val context: Context) {
             foregroundPackage = packageName
 
             val settings = c.currentSettings()
+            val inSettings = packageName in excluded.settingsPackages
+            // Proteger los Ajustes del sistema con el PIN maestro (protege la desinstalación).
+            val settingsLocked = settings.lockSystemSettings && inSettings && !isSettingsBypassed(packageName)
+            val appLocked = !inSettings && c.currentLockedApps().containsKey(packageName)
             val isLocked = !settings.paused &&
                 !excluded.isLauncher(packageName) &&
-                !isSettingsBypassed(packageName) &&
-                c.currentLockedApps().containsKey(packageName)
+                (settingsLocked || appLocked)
 
             val mustLock = c.sessions.onForeground(
                 packageName = packageName,
                 isLocked = isLocked,
                 graceMs = settings.gracePeriod.millis,
             )
-            if (mustLock) showLockScreen(packageName)
+            if (mustLock) showLockScreen(packageName, useMaster = settingsLocked)
         } catch (e: Exception) {
             ErrorLog.record("Decidir el bloqueo de la app", e)
         }
@@ -61,9 +64,9 @@ class LockEngine(private val context: Context) {
         }
     }
 
-    fun showLockScreen(packageName: String) {
+    fun showLockScreen(packageName: String, useMaster: Boolean = false) {
         try {
-            context.startActivity(LockActivity.intent(context, packageName))
+            context.startActivity(LockActivity.intent(context, packageName, useMaster))
             container.status.noteLock()
         } catch (e: Exception) {
             ErrorLog.record("Mostrar la pantalla de bloqueo", e)

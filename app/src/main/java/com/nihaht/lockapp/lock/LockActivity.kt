@@ -101,7 +101,7 @@ class LockActivity : FragmentActivity() {
             finish()
             return false
         }
-        viewModel.load(packageName)
+        viewModel.load(packageName, intent.getBooleanExtra(EXTRA_USE_MASTER, false))
         return true
     }
 
@@ -131,10 +131,12 @@ class LockActivity : FragmentActivity() {
 
     companion object {
         private const val EXTRA_PACKAGE = "com.nihaht.lockapp.extra.PACKAGE"
+        private const val EXTRA_USE_MASTER = "com.nihaht.lockapp.extra.USE_MASTER"
 
-        fun intent(context: Context, packageName: String): Intent =
+        fun intent(context: Context, packageName: String, useMaster: Boolean = false): Intent =
             Intent(context, LockActivity::class.java)
                 .putExtra(EXTRA_PACKAGE, packageName)
+                .putExtra(EXTRA_USE_MASTER, useMaster)
                 .addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK or
                         Intent.FLAG_ACTIVITY_NO_ANIMATION or

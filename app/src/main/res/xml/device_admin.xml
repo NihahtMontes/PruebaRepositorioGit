@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sin políticas: LockApp no necesita ninguna capacidad de administrador.
+     Basta con estar activo para que no se pueda desinstalar de un toque. -->
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies />
+</device-admin>

@@ -220,6 +220,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** Se llama al abrir Ajustes del sistema desde el asistente de permisos. */
     fun allowSystemSettingsTemporarily() = container.allowSettingsTemporarily()
 
+    fun setLockSystemSettings(enabled: Boolean) = update {
+        container.settingsRepository.setLockSystemSettings(enabled)
+        container.sessions.lockAll()
+    }
+
+    /** Desactiva el administrador de dispositivos (se podrá volver a desinstalar). */
+    fun deactivateDeviceAdmin() {
+        com.nihaht.lockapp.permissions.PermissionChecker.removeAdmin(getApplication())
+    }
+
     private fun update(block: suspend () -> Unit) {
         launchSafe(container.errors, "No se pudo guardar el ajuste") {
             try {

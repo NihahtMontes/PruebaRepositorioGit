@@ -9,6 +9,7 @@ import com.nihaht.lockapp.data.LockBackground
 import com.nihaht.lockapp.diagnostics.launchSafe
 import com.nihaht.lockapp.ui.components.BiometricHelper
 import com.nihaht.lockapp.ui.components.PinEntryController
+import com.nihaht.lockapp.security.Authenticator
 import com.nihaht.lockapp.security.CredentialKind
 import com.nihaht.lockapp.security.VerifyResult
 import kotlinx.coroutines.Dispatchers
@@ -29,6 +30,8 @@ data class LockUiState(
     val biometricAvailable: Boolean = false,
     val kind: CredentialKind = CredentialKind.PIN,
     val haptics: Boolean = true,
+    /** true si es el bloqueo de los Ajustes del sistema: se verifica el PIN maestro. */
+    val useMaster: Boolean = false,
     val ready: Boolean = false,
     /** true cuando el usuario ya puede volver a la app: la Activity se cierra. */
     val unlocked: Boolean = false,
@@ -44,9 +47,12 @@ class LockViewModel(application: Application) : AndroidViewModel(application) {
     val entry = PinEntryController(
         scope = viewModelScope,
         verify = { secret ->
-            val packageName = _state.value.packageName
-            if (packageName == null) VerifyResult.Wrong(0, 0)
-            else container.authenticator.verifyApp(packageName, secret)
+            val s = _state.value
+            when {
+                s.packageName == null -> VerifyResult.Wrong(0, 0)
+                s.useMaster -> container.authenticator.verifyMaster(secret)
+                else -> container.authenticator.verifyApp(s.packageName, secret)
+            }
         },
         onSuccess = { markUnlocked() },
         secretLabel = { if (_state.value.kind == CredentialKind.PATTERN) "Patrón" else "PIN" },
@@ -55,9 +61,9 @@ class LockViewModel(application: Application) : AndroidViewModel(application) {
     private var loadJob: Job? = null
 
     /** Prepara la pantalla para [packageName]. Se llama también desde onNewIntent. */
-    fun load(packageName: String) {
+    fun load(packageName: String, useMaster: Boolean = false) {
         val current = _state.value
-        if (current.packageName == packageName && !current.unlocked) return
+        if (current.packageName == packageName && current.useMaster == useMaster && !current.unlocked) return
 
         loadJob?.cancel()
         entry.reset()
@@ -65,10 +71,31 @@ class LockViewModel(application: Application) : AndroidViewModel(application) {
         val settingsNow = container.settingsState.value
         _state.value = LockUiState(
             packageName = packageName,
+            useMaster = useMaster,
             background = settingsNow?.background ?: LockBackground.Gradient(0),
         )
         loadJob = launchSafe(container.errors, "No se pudieron cargar los datos de la app bloqueada") {
             val settings = container.settingsRepository.settings.first()
+            if (useMaster) {
+                // Bloqueo de los Ajustes del sistema: se pide el PIN/patrón maestro.
+                val background = settings.background
+                val image = (background as? LockBackground.Image)?.let { container.backgroundImage(it.version) }
+                val biometric = settings.biometricEnabled && BiometricHelper.isAvailable(getApplication())
+                val remaining = container.authenticator.remainingLockout(Authenticator.MASTER_ID)
+                _state.update {
+                    it.copy(
+                        appLabel = "Ajustes del sistema",
+                        background = background,
+                        backgroundImage = image,
+                        biometricAvailable = biometric,
+                        kind = settings.masterCredential?.kind ?: CredentialKind.PIN,
+                        haptics = settings.patternHaptics,
+                        ready = true,
+                    )
+                }
+                if (remaining > 0) entry.startLockout(remaining)
+                return@launchSafe
+            }
             val app = container.lockedAppsRepository.lockedApps.first()[packageName]
             if (app == null) {
                 // Ya no está bloqueada (se quitó el bloqueo mientras tanto).
@@ -100,8 +127,10 @@ class LockViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun onBiometricSuccess() {
-        val packageName = _state.value.packageName ?: return
-        launchSafe(container.errors, "No se pudo completar el desbloqueo con huella") { container.authenticator.resetAttempts(packageName) }
+        val s = _state.value
+        val packageName = s.packageName ?: return
+        val id = if (s.useMaster) Authenticator.MASTER_ID else packageName
+        launchSafe(container.errors, "No se pudo completar el desbloqueo con huella") { container.authenticator.resetAttempts(id) }
         markUnlocked()
     }
 

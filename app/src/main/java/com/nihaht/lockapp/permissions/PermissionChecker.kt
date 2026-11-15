@@ -1,6 +1,7 @@
 package com.nihaht.lockapp.permissions
 
 import android.app.AppOpsManager
+import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -10,6 +11,7 @@ import android.os.PowerManager
 import android.os.Process
 import android.provider.Settings
 import androidx.core.app.NotificationManagerCompat
+import com.nihaht.lockapp.admin.LockDeviceAdminReceiver
 import com.nihaht.lockapp.data.DetectionMode
 import com.nihaht.lockapp.service.AppLockAccessibilityService
 
@@ -61,6 +63,35 @@ object PermissionChecker {
 
     /** Permiso "Mostrar sobre otras apps": necesario para abrir el bloqueo sin accesibilidad. */
     fun hasOverlay(context: Context): Boolean = Settings.canDrawOverlays(context)
+
+    // --- Administrador de dispositivos (impedir desinstalación) ---
+
+    fun adminComponent(context: Context) = ComponentName(context, LockDeviceAdminReceiver::class.java)
+
+    fun isAdminActive(context: Context): Boolean {
+        val dpm = context.getSystemService(DevicePolicyManager::class.java) ?: return false
+        return dpm.isAdminActive(adminComponent(context))
+    }
+
+    /** Diálogo del sistema para activar el administrador (impide desinstalar). */
+    fun addAdminIntent(context: Context): Intent =
+        Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
+            .putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent(context))
+            .putExtra(
+                DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                "Al activarlo, Android no dejará desinstalar LockApp sin desactivar antes el " +
+                    "administrador. LockApp no controla nada más de tu teléfono.",
+            )
+
+    /** Desactiva el administrador (se podrá volver a desinstalar). */
+    fun removeAdmin(context: Context) {
+        val dpm = context.getSystemService(DevicePolicyManager::class.java) ?: return
+        try {
+            dpm.removeActiveAdmin(adminComponent(context))
+        } catch (e: SecurityException) {
+            // Ya no era administrador; nada que hacer.
+        }
+    }
 
     fun isIgnoringBatteryOptimizations(context: Context): Boolean {
         val power = context.getSystemService(PowerManager::class.java) ?: return false

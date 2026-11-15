@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PauseCircleFilled
+import androidx.compose.material.icons.filled.NoEncryptionGmailerrorred
 import androidx.compose.material.icons.filled.ScreenLockPortrait
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Timer
@@ -33,13 +34,22 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.nihaht.lockapp.data.AppSettings
 import com.nihaht.lockapp.data.DetectionMode
 import com.nihaht.lockapp.data.GracePeriod
+import com.nihaht.lockapp.permissions.PermissionChecker
+import androidx.lifecycle.compose.LifecycleResumeEffect
 
 @Composable
 fun SettingsScreen(
@@ -53,6 +63,9 @@ fun SettingsScreen(
     onRelockChange: (Boolean) -> Unit,
     onDetectionModeChange: (DetectionMode) -> Unit,
     onPatternHapticsChange: (Boolean) -> Unit,
+    onLockSystemSettingsChange: (Boolean) -> Unit,
+    onAllowSettingsTemporarily: () -> Unit,
+    onDeactivateAdmin: () -> Unit,
     onProtectRecentsChange: (Boolean) -> Unit,
     onOpenBackground: () -> Unit,
     onOpenPermissions: () -> Unit,
@@ -181,6 +194,56 @@ fun SettingsScreen(
                 supportingContent = { Text("Color, degradado o imagen de tu galería") },
                 leadingContent = { Icon(Icons.Filled.Palette, contentDescription = null) },
                 modifier = Modifier.clickable(onClick = onOpenBackground),
+            )
+
+            HorizontalDivider()
+            SectionTitle("Antidesinstalación")
+            val context = LocalContext.current
+            var adminActive by remember { mutableStateOf(PermissionChecker.isAdminActive(context)) }
+            LifecycleResumeEffect(Unit) {
+                adminActive = PermissionChecker.isAdminActive(context)
+                onPauseOrDispose { }
+            }
+            val adminLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.StartActivityForResult(),
+            ) { adminActive = PermissionChecker.isAdminActive(context) }
+            ListItem(
+                headlineContent = { Text("Impedir desinstalación") },
+                supportingContent = {
+                    Text(
+                        if (adminActive) "Activo: Android no deja desinstalar LockApp sin desactivar antes esto."
+                        else "Activa el administrador de dispositivos para que no se pueda desinstalar de un toque.",
+                    )
+                },
+                leadingContent = { Icon(Icons.Filled.NoEncryptionGmailerrorred, contentDescription = null) },
+                trailingContent = {
+                    Switch(
+                        checked = adminActive,
+                        onCheckedChange = { on ->
+                            if (on) {
+                                onAllowSettingsTemporarily()
+                                adminLauncher.launch(PermissionChecker.addAdminIntent(context))
+                            } else {
+                                onDeactivateAdmin()
+                                adminActive = false
+                            }
+                        },
+                    )
+                },
+            )
+            ListItem(
+                headlineContent = { Text("Proteger Ajustes del sistema con PIN") },
+                supportingContent = {
+                    Text("Pide el acceso maestro al abrir los Ajustes de Android. Impide llegar a la desinstalación, pero también te lo pedirá para cualquier otro ajuste.")
+                },
+                leadingContent = { Icon(Icons.Filled.Security, contentDescription = null) },
+                trailingContent = { Switch(checked = settings.lockSystemSettings, onCheckedChange = onLockSystemSettingsChange) },
+            )
+            Text(
+                "Se puede saltar arrancando el teléfono en Modo seguro o restableciéndolo de fábrica: ninguna app puede impedirlo del todo.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
 
             HorizontalDivider()
