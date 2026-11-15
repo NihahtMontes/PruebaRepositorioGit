@@ -56,6 +56,7 @@ data class AppSettings(
     val detectionMode: DetectionMode = DetectionMode.USAGE_ACCESS,
     /** Pide el PIN maestro al abrir Recientes para que no se vean las miniaturas. */
     val protectRecents: Boolean = true,
+    val patternHaptics: Boolean = true,
     val background: LockBackground = LockBackground.Gradient(0),
 ) {
     val hasMasterPin: Boolean get() = masterCredential != null
@@ -77,6 +78,7 @@ class SettingsRepository(context: Context) {
                 detectionMode = DetectionMode.entries.firstOrNull { it.name == p[DETECTION_MODE] }
                     ?: DetectionMode.USAGE_ACCESS,
                 protectRecents = p[PROTECT_RECENTS] ?: true,
+                patternHaptics = p[PATTERN_HAPTICS] ?: true,
                 background = when (p[BG_TYPE]) {
                     BG_SOLID -> LockBackground.Solid(p[BG_VALUE] ?: DEFAULT_SOLID)
                     BG_IMAGE -> LockBackground.Image(p[BG_VERSION] ?: 0L)
@@ -113,6 +115,10 @@ class SettingsRepository(context: Context) {
         store.edit { it[PROTECT_RECENTS] = enabled }
     }
 
+    suspend fun setPatternHaptics(enabled: Boolean) {
+        store.edit { it[PATTERN_HAPTICS] = enabled }
+    }
+
     suspend fun setBackground(background: LockBackground) {
         store.edit { p ->
             when (background) {
@@ -139,6 +145,7 @@ class SettingsRepository(context: Context) {
         val RELOCK_SCREEN_OFF = booleanPreferencesKey("relock_screen_off")
         val PAUSED = booleanPreferencesKey("paused")
         val PROTECT_RECENTS = booleanPreferencesKey("protect_recents")
+        val PATTERN_HAPTICS = booleanPreferencesKey("pattern_haptics")
         val DETECTION_MODE = stringPreferencesKey("detection_mode")
         val BG_TYPE = stringPreferencesKey("bg_type")
         val BG_VALUE = intPreferencesKey("bg_value")

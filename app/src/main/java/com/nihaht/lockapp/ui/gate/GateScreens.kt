@@ -23,13 +23,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.nihaht.lockapp.ui.components.PinEntryPanel
+import com.nihaht.lockapp.security.CredentialKind
+import com.nihaht.lockapp.ui.components.ChosenCredential
+import com.nihaht.lockapp.ui.components.CredentialEntry
+import com.nihaht.lockapp.ui.components.CredentialSetup
+import com.nihaht.lockapp.ui.components.PinEntryController
 import com.nihaht.lockapp.ui.components.PinEntryState
-import com.nihaht.lockapp.ui.components.PinSetupFlow
 
-/** Primer uso: crear el PIN maestro que protege la propia LockApp. */
+/** Primer uso: crear la credencial maestra (PIN o patrón) que protege LockApp. */
 @Composable
-fun MasterSetupScreen(busy: Boolean, onPinChosen: (String) -> Unit) {
+fun MasterSetupScreen(busy: Boolean, haptics: Boolean, onChosen: (ChosenCredential) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -49,40 +52,38 @@ fun MasterSetupScreen(busy: Boolean, onPinChosen: (String) -> Unit) {
         Text("Bienvenido a LockApp", style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.height(8.dp))
         Text(
-            "Crea tu PIN maestro. Lo usarás para abrir LockApp y cambiar los ajustes. " +
-                "Después podrás poner un PIN distinto a cada app que bloquees.",
+            "Crea tu acceso maestro. Puedes usar un PIN o un patrón. Lo usarás para abrir " +
+                "LockApp y cambiar los ajustes. Luego podrás poner un acceso distinto a cada app.",
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(24.dp))
-        PinSetupFlow(
-            title = "Nuevo PIN maestro",
+        CredentialSetup(
+            title = "Nuevo acceso maestro",
             busy = busy,
-            onPinChosen = onPinChosen,
+            haptics = haptics,
+            onChosen = onChosen,
         )
     }
 }
 
-/** Entrada a LockApp: pide el PIN maestro. */
+/** Entrada a LockApp: pide el PIN o el patrón maestro. */
 @Composable
 fun MasterUnlockScreen(
+    kind: CredentialKind,
     entry: PinEntryState,
+    controller: PinEntryController,
     biometricAvailable: Boolean,
-    onDigit: (Char) -> Unit,
-    onDelete: () -> Unit,
-    onSubmit: () -> Unit,
+    haptics: Boolean,
     onBiometric: () -> Unit,
 ) {
-    PinEntryPanel(
+    CredentialEntry(
+        kind = kind,
         title = "LockApp",
-        subtitle = "Introduce tu PIN maestro",
-        pin = entry.pin,
-        message = entry.displayMessage,
-        isError = entry.isError,
-        enabled = entry.canType,
-        onDigit = onDigit,
-        onDelete = onDelete,
-        onSubmit = onSubmit,
+        subtitle = if (kind == CredentialKind.PATTERN) "Dibuja tu patrón maestro" else "Introduce tu PIN maestro",
+        entry = entry,
+        controller = controller,
+        haptics = haptics,
         modifier = Modifier
             .fillMaxSize()
             .safeDrawingPadding()

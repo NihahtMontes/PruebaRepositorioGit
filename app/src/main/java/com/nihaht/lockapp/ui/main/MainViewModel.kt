@@ -11,6 +11,9 @@ import com.nihaht.lockapp.data.GracePeriod
 import com.nihaht.lockapp.data.LockBackground
 import com.nihaht.lockapp.diagnostics.launchSafe
 import com.nihaht.lockapp.security.Authenticator
+import com.nihaht.lockapp.security.CredentialKind
+import com.nihaht.lockapp.security.PinCredential
+import com.nihaht.lockapp.ui.components.ChosenCredential
 import com.nihaht.lockapp.ui.components.BiometricHelper
 import com.nihaht.lockapp.ui.components.PinEntryController
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -54,6 +57,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         scope = viewModelScope,
         verify = { container.authenticator.verifyMaster(it) },
         onSuccess = { unlocked.value = true },
+        secretLabel = { if (masterKind() == CredentialKind.PATTERN) "Patrón" else "PIN" },
     )
 
     /** Teclado para confirmar el PIN maestro actual antes de cambiarlo. */
@@ -61,6 +65,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         scope = viewModelScope,
         verify = { container.authenticator.verifyMaster(it) },
         onSuccess = { _changeMasterStep.value = ChangeMasterStep.NEW_PIN },
+        secretLabel = { if (masterKind() == CredentialKind.PATTERN) "Patrón" else "PIN" },
     )
 
     private val _changeMasterStep = MutableStateFlow(ChangeMasterStep.VERIFY)
@@ -80,25 +85,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _openDiagnostics.value = false
     }
 
+    /** Tipo de la credencial maestra actual (PIN por defecto). */
+    fun masterKind(): CredentialKind = settings.value?.masterCredential?.kind ?: CredentialKind.PIN
+
+    fun patternHaptics(): Boolean = settings.value?.patternHaptics ?: true
+
+    private suspend fun buildCredential(chosen: ChosenCredential): PinCredential = when (chosen) {
+        is ChosenCredential.Pin -> container.authenticator.createCredential(chosen.pin)
+        is ChosenCredential.Pattern -> container.authenticator.createPatternCredential(chosen.nodes)
+    }
+
     fun canUseBiometricForMaster(): Boolean =
         settings.value?.biometricEnabled == true && BiometricHelper.isAvailable(getApplication())
 
     fun isBiometricHardwareAvailable(): Boolean = BiometricHelper.isAvailable(getApplication())
 
-    fun createMasterPin(pin: String) {
+    fun createMasterCredential(chosen: ChosenCredential) {
         if (_busy.value) return
-        launchSafe(container.errors, "No se pudo crear el PIN maestro") {
+        launchSafe(container.errors, "No se pudo crear la credencial maestra") {
             _busy.value = true
             try {
-                val credential = container.authenticator.createCredential(pin)
+                val credential = buildCredential(chosen)
                 // Se marca como abierta antes de guardar para no mostrar un instante
-                // la pantalla de "introduce tu PIN maestro" (ni lanzar la huella).
+                // la pantalla de entrada (ni lanzar la huella).
                 unlocked.value = true
                 container.settingsRepository.setMasterCredential(credential)
                 container.authenticator.resetAttempts(Authenticator.MASTER_ID)
             } catch (e: IOException) {
                 unlocked.value = false
-                _message.value = "No se pudo guardar el PIN maestro. Inténtalo de nuevo"
+                _message.value = "No se pudo guardar. Inténtalo de nuevo"
             } finally {
                 _busy.value = false
             }
@@ -137,22 +152,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _changeMasterStep.value = ChangeMasterStep.VERIFY
     }
 
-    fun saveNewMasterPin(pin: String) {
+    fun saveNewMasterCredential(chosen: ChosenCredential) {
         if (_busy.value) return
-        launchSafe(container.errors, "No se pudo cambiar el PIN maestro") {
+        launchSafe(container.errors, "No se pudo cambiar la credencial maestra") {
             _busy.value = true
             try {
-                val credential = container.authenticator.createCredential(pin)
+                val credential = buildCredential(chosen)
                 container.settingsRepository.setMasterCredential(credential)
                 container.authenticator.resetAttempts(Authenticator.MASTER_ID)
                 _changeMasterStep.value = ChangeMasterStep.DONE
             } catch (e: IOException) {
-                _message.value = "No se pudo guardar el PIN maestro. Inténtalo de nuevo"
+                _message.value = "No se pudo guardar. Inténtalo de nuevo"
             } finally {
                 _busy.value = false
             }
         }
     }
+
+    fun setPatternHaptics(enabled: Boolean) = update { container.settingsRepository.setPatternHaptics(enabled) }
 
     // --- Ajustes ---
 

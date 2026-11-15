@@ -51,6 +51,9 @@ class Authenticator(
     suspend fun createCredential(pin: String): PinCredential =
         withContext(Dispatchers.Default) { PinHasher.create(pin) }
 
+    suspend fun createPatternCredential(nodes: List<Int>): PinCredential =
+        withContext(Dispatchers.Default) { PinHasher.createPattern(nodes) }
+
     private suspend fun verify(id: String, credential: PinCredential, pin: String): VerifyResult =
         withContext(Dispatchers.Default) {
             mutex.withLock {

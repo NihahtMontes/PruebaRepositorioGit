@@ -9,6 +9,7 @@ import com.nihaht.lockapp.data.LockBackground
 import com.nihaht.lockapp.diagnostics.launchSafe
 import com.nihaht.lockapp.ui.components.BiometricHelper
 import com.nihaht.lockapp.ui.components.PinEntryController
+import com.nihaht.lockapp.security.CredentialKind
 import com.nihaht.lockapp.security.VerifyResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -26,6 +27,8 @@ data class LockUiState(
     val background: LockBackground = LockBackground.Gradient(0),
     val backgroundImage: ImageBitmap? = null,
     val biometricAvailable: Boolean = false,
+    val kind: CredentialKind = CredentialKind.PIN,
+    val haptics: Boolean = true,
     val ready: Boolean = false,
     /** true cuando el usuario ya puede volver a la app: la Activity se cierra. */
     val unlocked: Boolean = false,
@@ -40,12 +43,13 @@ class LockViewModel(application: Application) : AndroidViewModel(application) {
 
     val entry = PinEntryController(
         scope = viewModelScope,
-        verify = { pin ->
+        verify = { secret ->
             val packageName = _state.value.packageName
             if (packageName == null) VerifyResult.Wrong(0, 0)
-            else container.authenticator.verifyApp(packageName, pin)
+            else container.authenticator.verifyApp(packageName, secret)
         },
         onSuccess = { markUnlocked() },
+        secretLabel = { if (_state.value.kind == CredentialKind.PATTERN) "Patrón" else "PIN" },
     )
 
     private var loadJob: Job? = null
@@ -86,6 +90,8 @@ class LockViewModel(application: Application) : AndroidViewModel(application) {
                     background = background,
                     backgroundImage = image,
                     biometricAvailable = biometric,
+                    kind = app.credential.kind,
+                    haptics = settings.patternHaptics,
                     ready = true,
                 )
             }

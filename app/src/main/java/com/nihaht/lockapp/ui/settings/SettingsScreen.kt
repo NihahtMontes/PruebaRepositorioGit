@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.PauseCircleFilled
 import androidx.compose.material.icons.filled.ScreenLockPortrait
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -51,6 +52,7 @@ fun SettingsScreen(
     onGraceChange: (GracePeriod) -> Unit,
     onRelockChange: (Boolean) -> Unit,
     onDetectionModeChange: (DetectionMode) -> Unit,
+    onPatternHapticsChange: (Boolean) -> Unit,
     onProtectRecentsChange: (Boolean) -> Unit,
     onOpenBackground: () -> Unit,
     onOpenPermissions: () -> Unit,
@@ -116,6 +118,12 @@ fun SettingsScreen(
                         enabled = settings.detectionMode == DetectionMode.ACCESSIBILITY,
                     )
                 },
+            )
+            ListItem(
+                headlineContent = { Text("Vibración del patrón") },
+                supportingContent = { Text("Una vibración corta al tocar cada punto, para guiarte sin que se vea el trazo") },
+                leadingContent = { Icon(Icons.Filled.Vibration, contentDescription = null) },
+                trailingContent = { Switch(checked = settings.patternHaptics, onCheckedChange = onPatternHapticsChange) },
             )
             ListItem(
                 headlineContent = { Text("Pausar todos los bloqueos") },

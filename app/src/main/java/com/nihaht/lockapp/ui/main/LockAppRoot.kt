@@ -75,24 +75,30 @@ fun LockAppRoot(
     val gate by mainViewModel.gate.collectAsStateWithLifecycle()
     val busy by mainViewModel.busy.collectAsStateWithLifecycle()
     val masterEntry by mainViewModel.masterEntry.state.collectAsStateWithLifecycle()
+    val rootSettings by mainViewModel.settings.collectAsStateWithLifecycle()
+    val haptics = rootSettings?.patternHaptics ?: true
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         when (gate) {
             Gate.LOADING -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
-            Gate.SETUP -> MasterSetupScreen(busy = busy, onPinChosen = mainViewModel::createMasterPin)
+            Gate.SETUP -> MasterSetupScreen(
+                busy = busy,
+                haptics = haptics,
+                onChosen = mainViewModel::createMasterCredential,
+            )
             Gate.LOCKED -> {
                 val biometric = mainViewModel.canUseBiometricForMaster()
                 LaunchedEffect(Unit) {
                     if (biometric && masterEntry.lockoutRemainingMs == 0L) onRequestMasterBiometric()
                 }
                 MasterUnlockScreen(
+                    kind = mainViewModel.masterKind(),
                     entry = masterEntry,
+                    controller = mainViewModel.masterEntry,
                     biometricAvailable = biometric,
-                    onDigit = mainViewModel.masterEntry::onDigit,
-                    onDelete = mainViewModel.masterEntry::onDelete,
-                    onSubmit = mainViewModel.masterEntry::onSubmit,
+                    haptics = haptics,
                     onBiometric = onRequestMasterBiometric,
                 )
             }
@@ -206,6 +212,7 @@ private fun MainNavigation(
                 onGraceChange = mainViewModel::setGracePeriod,
                 onRelockChange = mainViewModel::setRelockOnScreenOff,
                 onDetectionModeChange = mainViewModel::setDetectionMode,
+                onPatternHapticsChange = mainViewModel::setPatternHaptics,
                 onProtectRecentsChange = mainViewModel::setProtectRecents,
                 onOpenBackground = { entry.ifResumed { navController.navigate(Routes.BACKGROUND) } },
                 onOpenPermissions = { entry.ifResumed { navController.navigate(Routes.PERMISSIONS) } },
@@ -218,12 +225,12 @@ private fun MainNavigation(
             val verifyEntry by mainViewModel.changeMasterEntry.state.collectAsStateWithLifecycle()
             ChangeMasterScreen(
                 step = step,
+                verifyKind = mainViewModel.masterKind(),
                 verifyEntry = verifyEntry,
+                verifyController = mainViewModel.changeMasterEntry,
                 busy = busy,
-                onDigit = mainViewModel.changeMasterEntry::onDigit,
-                onDelete = mainViewModel.changeMasterEntry::onDelete,
-                onSubmit = mainViewModel.changeMasterEntry::onSubmit,
-                onNewPin = mainViewModel::saveNewMasterPin,
+                haptics = settings.patternHaptics,
+                onNewChosen = mainViewModel::saveNewMasterCredential,
                 onBack = { entry.ifResumed { navController.popBackStack() } },
             )
         }

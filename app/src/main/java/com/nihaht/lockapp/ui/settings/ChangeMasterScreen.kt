@@ -26,26 +26,29 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.nihaht.lockapp.ui.components.PinEntryPanel
+import com.nihaht.lockapp.security.CredentialKind
+import com.nihaht.lockapp.ui.components.ChosenCredential
+import com.nihaht.lockapp.ui.components.CredentialEntry
+import com.nihaht.lockapp.ui.components.CredentialSetup
+import com.nihaht.lockapp.ui.components.PinEntryController
 import com.nihaht.lockapp.ui.components.PinEntryState
-import com.nihaht.lockapp.ui.components.PinSetupFlow
 import com.nihaht.lockapp.ui.main.ChangeMasterStep
 
 @Composable
 fun ChangeMasterScreen(
     step: ChangeMasterStep,
+    verifyKind: CredentialKind,
     verifyEntry: PinEntryState,
+    verifyController: PinEntryController,
     busy: Boolean,
-    onDigit: (Char) -> Unit,
-    onDelete: () -> Unit,
-    onSubmit: () -> Unit,
-    onNewPin: (String) -> Unit,
+    haptics: Boolean,
+    onNewChosen: (ChosenCredential) -> Unit,
     onBack: () -> Unit,
 ) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Cambiar PIN maestro") },
+                title = { Text("Cambiar acceso maestro") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás")
@@ -64,22 +67,19 @@ fun ChangeMasterScreen(
             verticalArrangement = Arrangement.Center,
         ) {
             when (step) {
-                ChangeMasterStep.VERIFY -> PinEntryPanel(
-                    title = "PIN maestro actual",
+                ChangeMasterStep.VERIFY -> CredentialEntry(
+                    kind = verifyKind,
+                    title = if (verifyKind == CredentialKind.PATTERN) "Patrón maestro actual" else "PIN maestro actual",
                     subtitle = "Confirma que eres tú",
-                    pin = verifyEntry.pin,
-                    message = verifyEntry.displayMessage,
-                    isError = verifyEntry.isError,
-                    enabled = verifyEntry.canType,
-                    keySize = 68.dp,
-                    onDigit = onDigit,
-                    onDelete = onDelete,
-                    onSubmit = onSubmit,
+                    entry = verifyEntry,
+                    controller = verifyController,
+                    haptics = haptics,
                 )
-                ChangeMasterStep.NEW_PIN -> PinSetupFlow(
-                    title = "Nuevo PIN maestro",
+                ChangeMasterStep.NEW_PIN -> CredentialSetup(
+                    title = "Nuevo acceso maestro",
                     busy = busy,
-                    onPinChosen = onNewPin,
+                    haptics = haptics,
+                    onChosen = onNewChosen,
                 )
                 ChangeMasterStep.DONE -> {
                     Icon(
@@ -89,7 +89,7 @@ fun ChangeMasterScreen(
                         modifier = Modifier.size(64.dp),
                     )
                     Spacer(Modifier.height(16.dp))
-                    Text("PIN maestro actualizado", style = MaterialTheme.typography.titleLarge)
+                    Text("Acceso maestro actualizado", style = MaterialTheme.typography.titleLarge)
                     Spacer(Modifier.height(24.dp))
                     Button(onClick = onBack) { Text("Volver") }
                 }

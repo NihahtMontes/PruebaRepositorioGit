@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.nihaht.lockapp.appContainer
 import com.nihaht.lockapp.data.InstalledApp
 import com.nihaht.lockapp.data.LockedApp
+import com.nihaht.lockapp.ui.components.ChosenCredential
 import com.nihaht.lockapp.diagnostics.launchSafe
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -90,23 +91,28 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
             ?: container.installedApps.label(packageName)
 
     /** Bloquea la app con su propio PIN, o cambia el PIN si ya estaba bloqueada. */
-    fun lockApp(packageName: String, pin: String, allowBiometric: Boolean, onDone: () -> Unit) {
+    fun lockApp(packageName: String, chosen: ChosenCredential, allowBiometric: Boolean, onDone: () -> Unit) {
         if (_busy.value) return
-        launchSafe(container.errors, "No se pudo guardar el PIN de la app") {
+        launchSafe(container.errors, "No se pudo guardar el acceso de la app") {
             _busy.value = true
             try {
-                val credential = container.authenticator.createCredential(pin)
+                val credential = when (chosen) {
+                    is ChosenCredential.Pin -> container.authenticator.createCredential(chosen.pin)
+                    is ChosenCredential.Pattern -> container.authenticator.createPatternCredential(chosen.nodes)
+                }
                 container.lockedAppsRepository.lock(packageName, credential, allowBiometric)
                 container.authenticator.resetAttempts(packageName)
                 container.sessions.lock(packageName)
                 onDone()
             } catch (e: IOException) {
-                _error.value = "No se pudo guardar el PIN. Inténtalo de nuevo"
+                _error.value = "No se pudo guardar. Inténtalo de nuevo"
             } finally {
                 _busy.value = false
             }
         }
     }
+
+    fun patternHaptics(): Boolean = container.settingsState.value?.patternHaptics ?: true
 
     fun setAllowBiometric(packageName: String, allow: Boolean) {
         launchSafe(container.errors, "No se pudo cambiar el ajuste de huella") { container.lockedAppsRepository.setAllowBiometric(packageName, allow) }

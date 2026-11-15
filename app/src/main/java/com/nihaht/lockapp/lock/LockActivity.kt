@@ -82,9 +82,7 @@ class LockActivity : FragmentActivity() {
                 LockScreen(
                     state = state,
                     entry = entry,
-                    onDigit = viewModel.entry::onDigit,
-                    onDelete = viewModel.entry::onDelete,
-                    onSubmit = viewModel.entry::onSubmit,
+                    controller = viewModel.entry,
                     onBiometric = ::showBiometric,
                 )
             }

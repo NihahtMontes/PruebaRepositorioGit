@@ -45,7 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nihaht.lockapp.data.LockedApp
 import com.nihaht.lockapp.ui.components.AppIcon
-import com.nihaht.lockapp.ui.components.PinSetupFlow
+import com.nihaht.lockapp.ui.components.CredentialSetup
 
 private enum class EditorMode { VIEW, SET_PIN }
 
@@ -129,7 +129,7 @@ private fun EditorContent(
             EditorMode.SET_PIN -> {
                 if (entry == null) {
                     Text(
-                        "Elige un PIN solo para $label. Será distinto del PIN maestro y del de otras apps.",
+                        "Elige un PIN o patrón solo para $label. Será distinto del acceso maestro y del de otras apps.",
                         style = MaterialTheme.typography.bodyMedium,
                         textAlign = TextAlign.Center,
                     )
@@ -138,12 +138,12 @@ private fun EditorContent(
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                PinSetupFlow(
-                    title = if (entry == null) "PIN para $label" else "Nuevo PIN para $label",
+                CredentialSetup(
+                    title = if (entry == null) "Acceso para $label" else "Nuevo acceso para $label",
                     busy = busy,
-                    keySize = 64.dp,
-                    onPinChosen = { pin ->
-                        viewModel.lockApp(packageName, pin, allowBiometric) {
+                    haptics = viewModel.patternHaptics(),
+                    onChosen = { chosen ->
+                        viewModel.lockApp(packageName, chosen, allowBiometric) {
                             if (entry == null) onBack() else mode = EditorMode.VIEW
                         }
                     },
@@ -157,13 +157,13 @@ private fun EditorContent(
 
             EditorMode.VIEW -> {
                 Text(
-                    "$label está bloqueada con su propio PIN.",
+                    "$label está bloqueada con su propio acceso.",
                     style = MaterialTheme.typography.titleMedium,
                     textAlign = TextAlign.Center,
                 )
                 Spacer(Modifier.height(16.dp))
                 ListItem(
-                    headlineContent = { Text("Cambiar el PIN de esta app") },
+                    headlineContent = { Text("Cambiar el PIN o patrón de esta app") },
                     leadingContent = { Icon(Icons.Filled.VpnKey, contentDescription = null) },
                     modifier = Modifier.clickable { mode = EditorMode.SET_PIN },
                 )

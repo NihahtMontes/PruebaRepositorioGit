@@ -18,17 +18,17 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.nihaht.lockapp.security.CredentialKind
+import com.nihaht.lockapp.ui.components.CredentialEntry
 import com.nihaht.lockapp.ui.components.LockBackgroundBox
-import com.nihaht.lockapp.ui.components.PinEntryPanel
+import com.nihaht.lockapp.ui.components.PinEntryController
 import com.nihaht.lockapp.ui.components.PinEntryState
 
 @Composable
 fun LockScreen(
     state: LockUiState,
     entry: PinEntryState,
-    onDigit: (Char) -> Unit,
-    onDelete: () -> Unit,
-    onSubmit: () -> Unit,
+    controller: PinEntryController,
     onBiometric: () -> Unit,
 ) {
     LockBackgroundBox(
@@ -36,16 +36,14 @@ fun LockScreen(
         image = state.backgroundImage,
         modifier = Modifier.fillMaxSize(),
     ) {
-        PinEntryPanel(
+        CredentialEntry(
+            kind = state.kind,
             title = state.appLabel.ifEmpty { " " },
-            subtitle = "Introduce el PIN de esta app",
-            pin = entry.pin,
-            message = entry.displayMessage,
-            isError = entry.isError,
-            enabled = entry.canType,
-            onDigit = onDigit,
-            onDelete = onDelete,
-            onSubmit = onSubmit,
+            subtitle = if (state.kind == CredentialKind.PATTERN) "Dibuja el patrón de esta app"
+            else "Introduce el PIN de esta app",
+            entry = entry,
+            controller = controller,
+            haptics = state.haptics,
             modifier = Modifier
                 .fillMaxSize()
                 .systemBarsPadding()

@@ -46,6 +46,8 @@ class PinEntryController(
     private val scope: CoroutineScope,
     private val verify: suspend (String) -> VerifyResult,
     private val onSuccess: () -> Unit,
+    /** Devuelve "PIN" o "Patrón" para los mensajes de error. */
+    private val secretLabel: () -> String = { "PIN" },
 ) {
     private val _state = MutableStateFlow(PinEntryState())
     val state: StateFlow<PinEntryState> = _state.asStateFlow()
@@ -83,16 +85,32 @@ class PinEntryController(
             _state.update { it.copy(message = "El PIN tiene entre 4 y 6 dígitos", isError = true) }
             return
         }
+        runVerify(current.pin)
+    }
+
+    /** Envía un patrón ya dibujado (lista de puntos 0..8) para verificarlo. */
+    fun submitPattern(nodes: List<Int>) {
+        if (!_state.value.canType) return
+        if (nodes.size < PinHasher.PATTERN_MIN_NODES) {
+            _state.update {
+                it.copy(message = "Une al menos ${PinHasher.PATTERN_MIN_NODES} puntos", isError = true)
+            }
+            return
+        }
+        runVerify(PinHasher.patternToSecret(nodes))
+    }
+
+    private fun runVerify(secret: String) {
         _state.update { it.copy(checking = true) }
         scope.launch(failSafe) {
             val result = try {
-                verify(current.pin)
+                verify(secret)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 // Error al leer o guardar en disco: no se cuenta como intento.
                 _state.update {
-                    it.copy(pin = "", checking = false, isError = true, message = "No se pudo comprobar el PIN. Inténtalo de nuevo")
+                    it.copy(pin = "", checking = false, isError = true, message = "No se pudo comprobar. Inténtalo de nuevo")
                 }
                 return@launch
             }
@@ -108,9 +126,9 @@ class PinEntryController(
                             checking = false,
                             isError = true,
                             message = when (result.attemptsLeft) {
-                                0 -> "PIN incorrecto"
-                                1 -> "PIN incorrecto. Te queda 1 intento"
-                                else -> "PIN incorrecto. Te quedan ${result.attemptsLeft} intentos"
+                                0 -> "${secretLabel()} incorrecto"
+                                1 -> "${secretLabel()} incorrecto. Te queda 1 intento"
+                                else -> "${secretLabel()} incorrecto. Te quedan ${result.attemptsLeft} intentos"
                             },
                         )
                     }
