@@ -198,6 +198,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setBackground(background: LockBackground) = update { container.settingsRepository.setBackground(background) }
 
+    fun setIconOption(option: com.nihaht.lockapp.launcher.AppIconOption) = update {
+        container.settingsRepository.setIconOption(option)
+        com.nihaht.lockapp.launcher.IconManager.apply(getApplication(), option)
+    }
+
     fun setImageBackground(uri: Uri) {
         launchSafe(container.errors, "No se pudo cargar la imagen de fondo") {
             _busy.value = true

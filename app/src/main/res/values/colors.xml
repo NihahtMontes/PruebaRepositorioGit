@@ -4,4 +4,7 @@
     <color name="window_light">#FFFBF8FF</color>
     <color name="window_dark">#FF121318</color>
     <color name="lock_window">#FF101418</color>
+    <color name="disguise_calc_bg">#FF2E7D32</color>
+    <color name="disguise_clock_bg">#FF1565C0</color>
+    <color name="disguise_tools_bg">#FF455A64</color>
 </resources>

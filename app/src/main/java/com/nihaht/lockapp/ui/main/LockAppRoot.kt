@@ -42,6 +42,7 @@ import com.nihaht.lockapp.ui.gate.MasterUnlockScreen
 import com.nihaht.lockapp.ui.permissions.PermissionsScreen
 import com.nihaht.lockapp.ui.settings.BackgroundScreen
 import com.nihaht.lockapp.ui.settings.ChangeMasterScreen
+import com.nihaht.lockapp.ui.settings.IconDisguiseScreen
 import com.nihaht.lockapp.ui.settings.SettingsScreen
 
 private object Routes {
@@ -53,6 +54,7 @@ private object Routes {
     const val PERMISSIONS = "permissions"
     const val ONBOARDING = "onboarding"
     const val DIAGNOSTICS = "diagnostics"
+    const val ICON = "icon"
 
     fun app(packageName: String) = "app/${Uri.encode(packageName)}"
 }
@@ -218,6 +220,7 @@ private fun MainNavigation(
                 onDeactivateAdmin = mainViewModel::deactivateDeviceAdmin,
                 onProtectRecentsChange = mainViewModel::setProtectRecents,
                 onOpenBackground = { entry.ifResumed { navController.navigate(Routes.BACKGROUND) } },
+                onOpenIcon = { entry.ifResumed { navController.navigate(Routes.ICON) } },
                 onOpenPermissions = { entry.ifResumed { navController.navigate(Routes.PERMISSIONS) } },
                 onOpenDiagnostics = { entry.ifResumed { navController.navigate(Routes.DIAGNOSTICS) } },
                 onLockNow = mainViewModel::lockNow,
@@ -243,6 +246,13 @@ private fun MainNavigation(
                 busy = busy,
                 onSelect = mainViewModel::setBackground,
                 onImagePicked = mainViewModel::setImageBackground,
+                onBack = { entry.ifResumed { navController.popBackStack() } },
+            )
+        }
+        composable(Routes.ICON) { entry ->
+            IconDisguiseScreen(
+                current = settings.iconOption,
+                onChoose = mainViewModel::setIconOption,
                 onBack = { entry.ifResumed { navController.popBackStack() } },
             )
         }

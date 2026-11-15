@@ -6,6 +6,15 @@ App Android para uso personal que bloquea las aplicaciones que elijas (WhatsApp,
 - Los PIN nunca se guardan en texto plano: solo un hash PBKDF2-HMAC-SHA256 con sal aleatoria.
 - Kotlin, Jetpack Compose, Material 3, DataStore. minSdk 26, targetSdk 34.
 
+## Novedades 1.3.0
+
+- **Patrón 3×3 invisible**: al crear un acceso (maestro o por app) puedes elegir **PIN** o **patrón**. El patrón no muestra el trazo ni ilumina los puntos mientras lo dibujas, para que nadie lo vea; solo vibra al tocar cada punto (se puede apagar en Ajustes). Se guarda como hash con sal, igual que el PIN.
+- **Impedir desinstalación**: en Ajustes, *Antidesinstalación*:
+  - *Impedir desinstalación* activa el **administrador de dispositivos**: Android no deja desinstalar LockApp sin desactivarlo antes.
+  - *Proteger Ajustes del sistema con PIN* pide el acceso maestro al abrir los Ajustes de Android, impidiendo llegar a la desinstalación o a desactivar el administrador.
+  - Límite real: se puede saltar arrancando en **Modo seguro** o con un **restablecimiento de fábrica**; ninguna app puede impedirlo del todo.
+- **Disfrazar el icono**: en Ajustes > *Icono y nombre*, LockApp puede aparecer como Calculadora, Reloj o Herramientas. Se abre igual; solo cambia cómo se ve.
+
 ## Métodos de detección (Acceso al uso vs Accesibilidad)
 
 LockApp puede saber qué app abres de dos formas. Se elige en **Ajustes > Método de detección**.

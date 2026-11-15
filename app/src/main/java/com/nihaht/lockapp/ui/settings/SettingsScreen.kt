@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.NoEncryptionGmailerrorred
 import androidx.compose.material.icons.filled.ScreenLockPortrait
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.HealthAndSafety
@@ -68,6 +69,7 @@ fun SettingsScreen(
     onDeactivateAdmin: () -> Unit,
     onProtectRecentsChange: (Boolean) -> Unit,
     onOpenBackground: () -> Unit,
+    onOpenIcon: () -> Unit,
     onOpenPermissions: () -> Unit,
     onOpenDiagnostics: () -> Unit,
     onLockNow: () -> Unit,
@@ -194,6 +196,12 @@ fun SettingsScreen(
                 supportingContent = { Text("Color, degradado o imagen de tu galería") },
                 leadingContent = { Icon(Icons.Filled.Palette, contentDescription = null) },
                 modifier = Modifier.clickable(onClick = onOpenBackground),
+            )
+            ListItem(
+                headlineContent = { Text("Icono y nombre") },
+                supportingContent = { Text("Disfraza LockApp como otra app en el cajón de aplicaciones") },
+                leadingContent = { Icon(Icons.Filled.Apps, contentDescription = null) },
+                modifier = Modifier.clickable(onClick = onOpenIcon),
             )
 
             HorizontalDivider()

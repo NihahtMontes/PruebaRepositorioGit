@@ -9,4 +9,7 @@
     <string name="alert_channel_name">Avisos de protección</string>
     <string name="alert_title">LockApp no está protegiendo tus apps</string>
     <string name="admin_description">Impide desinstalar LockApp sin desactivar antes el administrador. LockApp no controla nada más de tu teléfono.</string>
+    <string name="disguise_calc">Calculadora</string>
+    <string name="disguise_clock">Reloj</string>
+    <string name="disguise_settings">Herramientas</string>
 </resources>

@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.nihaht.lockapp.launcher.AppIconOption
 import com.nihaht.lockapp.security.PinCredential
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -59,6 +60,7 @@ data class AppSettings(
     val patternHaptics: Boolean = true,
     /** Pide el PIN maestro al abrir los Ajustes del sistema (protege la desinstalación). */
     val lockSystemSettings: Boolean = false,
+    val iconOption: AppIconOption = AppIconOption.DEFAULT,
     val background: LockBackground = LockBackground.Gradient(0),
 ) {
     val hasMasterPin: Boolean get() = masterCredential != null
@@ -82,6 +84,7 @@ class SettingsRepository(context: Context) {
                 protectRecents = p[PROTECT_RECENTS] ?: true,
                 patternHaptics = p[PATTERN_HAPTICS] ?: true,
                 lockSystemSettings = p[LOCK_SYSTEM_SETTINGS] ?: false,
+                iconOption = AppIconOption.entries.firstOrNull { it.name == p[ICON_OPTION] } ?: AppIconOption.DEFAULT,
                 background = when (p[BG_TYPE]) {
                     BG_SOLID -> LockBackground.Solid(p[BG_VALUE] ?: DEFAULT_SOLID)
                     BG_IMAGE -> LockBackground.Image(p[BG_VERSION] ?: 0L)
@@ -126,6 +129,10 @@ class SettingsRepository(context: Context) {
         store.edit { it[LOCK_SYSTEM_SETTINGS] = enabled }
     }
 
+    suspend fun setIconOption(option: AppIconOption) {
+        store.edit { it[ICON_OPTION] = option.name }
+    }
+
     suspend fun setBackground(background: LockBackground) {
         store.edit { p ->
             when (background) {
@@ -154,6 +161,7 @@ class SettingsRepository(context: Context) {
         val PROTECT_RECENTS = booleanPreferencesKey("protect_recents")
         val PATTERN_HAPTICS = booleanPreferencesKey("pattern_haptics")
         val LOCK_SYSTEM_SETTINGS = booleanPreferencesKey("lock_system_settings")
+        val ICON_OPTION = stringPreferencesKey("icon_option")
         val DETECTION_MODE = stringPreferencesKey("detection_mode")
         val BG_TYPE = stringPreferencesKey("bg_type")
         val BG_VALUE = intPreferencesKey("bg_value")
