@@ -35,8 +35,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,6 +46,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.nihaht.lockapp.data.AppSettings
 import com.nihaht.lockapp.data.DetectionMode
+import com.nihaht.lockapp.appContainer
 import com.nihaht.lockapp.data.GracePeriod
 import com.nihaht.lockapp.permissions.PermissionChecker
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -212,9 +211,6 @@ fun SettingsScreen(
                 adminActive = PermissionChecker.isAdminActive(context)
                 onPauseOrDispose { }
             }
-            val adminLauncher = rememberLauncherForActivityResult(
-                ActivityResultContracts.StartActivityForResult(),
-            ) { adminActive = PermissionChecker.isAdminActive(context) }
             ListItem(
                 headlineContent = { Text("Impedir desinstalación") },
                 supportingContent = {
@@ -230,7 +226,11 @@ fun SettingsScreen(
                         onCheckedChange = { on ->
                             if (on) {
                                 onAllowSettingsTemporarily()
-                                adminLauncher.launch(PermissionChecker.addAdminIntent(context))
+                                try {
+                                    context.startActivity(PermissionChecker.addAdminIntent(context))
+                                } catch (e: Exception) {
+                                    context.appContainer.errors.report("No se pudo abrir el administrador de dispositivos", e)
+                                }
                             } else {
                                 onDeactivateAdmin()
                                 adminActive = false

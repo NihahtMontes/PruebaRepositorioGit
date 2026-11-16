@@ -94,7 +94,10 @@ class KeepAliveService : Service() {
             while (isActive) {
                 try {
                     if (usagePollActive()) {
-                        detector.poll()?.let { appContainer.lockEngine.onForeground(it) }
+                        detector.poll()?.let {
+                            appContainer.status.noteEvent(it)
+                            appContainer.lockEngine.onForeground(it)
+                        }
                     }
                 } catch (e: Exception) {
                     ErrorLog.record("Detección por acceso al uso", e)
